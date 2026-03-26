@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spatial memory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0c0d10;
+      --surface: #14161c;
+      --border: #2a2d36;
+      --text: #e8eaef;
+      --muted: #8b919d;
+      --accent: #7c9cff;
+      --user-bg: #1e2433;
+      --assistant-bg: #181b22;
+      --error: #ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.55;
+      overflow: hidden;
+    }
+    .app {
+      display: grid;
+      grid-template-columns: minmax(420px, 1fr) minmax(380px, 0.95fr);
+      height: 100dvh;
+      overflow: hidden;
+    }
+    .chat-pane {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .space-pane {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      background: #0a0b0f;
+      overflow: hidden;
+    }
+    header {
+      flex-shrink: 0;
+      padding: 0.85rem 1.1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    header p {
+      margin: 0.25rem 0 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    #log {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 1rem 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+    .bubble {
+      max-width: 92%;
+      padding: 0.75rem 0.95rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .bubble.user { align-self: flex-end; background: var(--user-bg); border-color: #30384a; }
+    .bubble.assistant { align-self: flex-start; background: var(--assistant-bg); }
+    .bubble .label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+      font-weight: 500;
+    }
+    .bubble p { margin: 0; white-space: pre-wrap; word-break: break-word; }
+    .meta {
+      margin-top: 0.55rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .composer {
+      flex-shrink: 0;
+      padding: 0.75rem 1rem 1rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .row { display: flex; gap: 0.5rem; align-items: flex-end; }
+    textarea {
+      flex: 1; min-height: 44px; max-height: 160px; resize: vertical;
+      padding: 0.65rem 0.85rem; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font: inherit; line-height: 1.45;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124, 156, 255, 0.2); }
+    textarea:disabled { opacity: 0.55; }
+    button.send {
+      padding: 0.65rem 1.1rem; border: none; border-radius: 10px;
+      background: var(--accent); color: #0c0d10; font-weight: 600; font-size: 0.9rem;
+      cursor: pointer; font-family: inherit;
+    }
+    button.send:hover:not(:disabled) { filter: brightness(1.08); }
+    button.send:disabled { opacity: 0.45; cursor: not-allowed; }
+    .status { font-size: 0.75rem; color: var(--muted); margin-top: 0.45rem; min-height: 1.1em; }
+    .status.error { color: var(--error); }
+    .empty-hint { color: var(--muted); font-size: 0.88rem; text-align: center; padding: 2rem 1rem; }
+    .space-top {
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      padding: 0.75rem 0.9rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .space-top b { color: var(--text); font-weight: 600; }
+    #spaceCanvasWrap { position: relative; flex: 1; min-height: 0; }
+    #spaceCanvasWrap canvas { display: block; width: 100% !important; height: 100% !important; }
+    #spaceLegend {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      background: rgba(8, 10, 14, 0.8);
+      border: 1px solid #2b3140;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: 12px "IBM Plex Mono", ui-monospace, monospace;
+      color: #b8bfcc;
+      pointer-events: none;
+      white-space: pre-line;
+    }
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: 58% 42%; }
+      .chat-pane { border-right: 0; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="chat-pane">
+      <header>
+        <h1>Spatial memory chat</h1>
+        <p>Llama 3.2 · orient → inspect → commit · streaming</p>
+      </header>
+      <div id="log" aria-live="polite">
+        <div class="empty-hint" id="hint">Type below and press Enter or Send.</div>
+      </div>
+      <div class="composer">
+        <form class="row" id="form">
+          <textarea id="input" rows="2" placeholder="Message…" autocomplete="off"></textarea>
+          <button type="submit" class="send" id="send">Send</button>
+        </form>
+        <div class="status" id="status"></div>
+      </div>
+    </section>
+    <section class="space-pane">
+      <div class="space-top"><b>Latent Space</b> · drag to orbit · wheel to zoom · right-drag to pan</div>
+      <div id="spaceCanvasWrap">
+        <div id="spaceLegend">x: self(-) ↔ other(+)
+y: known(-) ↔ unknown(+)
+z: active(-) ↔ contemplative(+)</div>
+      </div>
+    </section>
+  </div>
+  <script>
+    const log = document.getElementById("log");
+    const hint = document.getElementById("hint");
+    const input = document.getElementById("input");
+    const form = document.getElementById("form");
+    const sendBtn = document.getElementById("send");
+    const status = document.getElementById("status");
+
+    function scrollBottom() {
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function addUserBubble(text) {
+      if (hint.parentNode) hint.remove();
+      const wrap = document.createElement("div");
+      wrap.className = "bubble user";
+      const lab = document.createElement("div");
+      lab.className = "label";
+      lab.textContent = "You";
+      const body = document.createElement("p");
+      body.textContent = text;
+      wrap.appendChild(lab);
+      wrap.appendChild(body);
+      log.appendChild(wrap);
+      scrollBottom();
+    }
+
+    function createAssistantBubble() {
+      const wrap = document.createElement("div");
+      wrap.className = "bubble assistant";
+      const lab = document.createElement("div");
+      lab.className = "label";
+      lab.textContent = "Assistant";
+      const body = document.createElement("p");
+      body.textContent = "";
+      wrap.appendChild(lab);
+      wrap.appendChild(body);
+      const metaEl = document.createElement("div");
+      metaEl.className = "meta";
+      metaEl.textContent = "";
+      wrap.appendChild(metaEl);
+      log.appendChild(wrap);
+      scrollBottom();
+      return { wrap, body, metaEl };
+    }
+
+    function fillMeta(metaEl, d) {
+      if (!d || !metaEl) return;
+      const rat = (d.rationale || "").slice(0, 220);
+      metaEl.textContent =
+        "xyz=(" +
+        d.x.toFixed(2) +
+        "," +
+        d.y.toFixed(2) +
+        "," +
+        d.z.toFixed(2) +
+        ") · " +
+        d.commitment +
+        " · " +
+        (d.rule_id || "") +
+        " · conf " +
+        d.confidence.toFixed(2) +
+        (d.caution ? " · caution" : "") +
+        (rat ? " · " + rat + (d.rationale && d.rationale.length > 220 ? "…" : "") : "");
+    }
+
+    let busy = false;
+    let refreshSpace = async () => {};
+
+    async function submitMessage() {
+      const text = input.value.trim();
+      if (!text || busy) return;
+      busy = true;
+      sendBtn.disabled = true;
+      input.disabled = true;
+      status.textContent = "Thinking…";
+      status.classList.remove("error");
+      addUserBubble(text);
+      input.value = "";
+
+      let assistantBody = null;
+      let metaEl = null;
+
+      try {
+        const r = await fetch("/api/chat/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text }),
+        });
+        if (!r.ok) {
+          const data = await r.json().catch(() => ({}));
+          const d = data.detail;
+          const msg = Array.isArray(d)
+            ? d.map((x) => x.msg || JSON.stringify(x)).join("; ")
+            : d || r.statusText || "Request failed";
+          throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+        }
+        const reader = r.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() || "";
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            let ev;
+            try {
+              ev = JSON.parse(line);
+            } catch {
+              continue;
+            }
+            if (ev.event === "meta") {
+              if (!assistantBody) {
+                const el = createAssistantBubble();
+                assistantBody = el.body;
+                metaEl = el.metaEl;
+              }
+              fillMeta(metaEl, {
+                ...ev.data,
+                commitment: ev.data.commitment,
+                rule_id: ev.data.rule_id,
+              });
+            } else if (ev.event === "token") {
+              if (!assistantBody) {
+                const el = createAssistantBubble();
+                assistantBody = el.body;
+                metaEl = el.metaEl;
+              }
+              assistantBody.textContent += ev.text;
+              scrollBottom();
+            } else if (ev.event === "error") {
+              throw new Error(ev.detail || "stream error");
+            } else if (ev.event === "done") {
+              if (!assistantBody) {
+                const el = createAssistantBubble();
+                assistantBody = el.body;
+                metaEl = el.metaEl;
+              }
+              if (ev.data.reply && !assistantBody.textContent) {
+                assistantBody.textContent = ev.data.reply;
+              }
+              fillMeta(metaEl, ev.data);
+              refreshSpace();
+            }
+          }
+        }
+        status.textContent = "";
+      } catch (e) {
+        status.textContent = String(e.message || e);
+        status.classList.add("error");
+      } finally {
+        busy = false;
+        sendBtn.disabled = false;
+        input.disabled = false;
+        input.focus();
+        scrollBottom();
+      }
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      submitMessage();
+    });
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.isComposing) {
+        e.preventDefault();
+        submitMessage();
+      }
+    });
+
+    function init3D() {
+      const wrap = document.getElementById("spaceCanvasWrap");
+      const canvas = document.createElement("canvas");
+      wrap.appendChild(canvas);
+      const ctx = canvas.getContext("2d");
+      let nodes = [];
+      let links = [];
+      let yaw = 0.9;
+      let pitch = -0.35;
+      let zoom = 1.0;
+      let dragging = false;
+      let lx = 0;
+      let ly = 0;
+
+        const commitmentColors = { recognition: "#6fe7a5", deepening: "#6f96ff", bridging: "#f7c66f", founding: "#df84ff" };
+      const linkColors = { reinforcement: "#7ca1ff", bridge: "#f5c46a", tension: "#ff6b6b", sequence: "#8fd3c5" };
+
+      function resize() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.max(10, Math.floor(wrap.clientWidth * dpr));
+        canvas.height = Math.max(10, Math.floor(wrap.clientHeight * dpr));
+        canvas.style.width = wrap.clientWidth + "px";
+        canvas.style.height = wrap.clientHeight + "px";
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      window.addEventListener("resize", resize);
+      resize();
+
+      function rot(pt) {
+        const cy = Math.cos(yaw), sy = Math.sin(yaw);
+        const cp = Math.cos(pitch), sp = Math.sin(pitch);
+        let x = pt.x, y = pt.y, z = pt.z;
+        const x1 = x * cy - z * sy;
+        const z1 = x * sy + z * cy;
+        const y2 = y * cp - z1 * sp;
+        const z2 = y * sp + z1 * cp;
+        return { x: x1, y: y2, z: z2 };
+      }
+      function project(pt) {
+        const r = rot(pt);
+        const w = wrap.clientWidth, h = wrap.clientHeight;
+        const f = (220 * zoom) / (2.2 + r.z + 2.2);
+        return { sx: w * 0.5 + r.x * f, sy: h * 0.52 - r.y * f, depth: r.z };
+      }
+      function drawAxes() {
+        const axes = [
+          [{ x: -1.1, y: 0, z: 0 }, { x: 1.1, y: 0, z: 0 }, "#ff7b7b"],
+          [{ x: 0, y: -1.1, z: 0 }, { x: 0, y: 1.1, z: 0 }, "#7bff9a"],
+          [{ x: 0, y: 0, z: -1.1 }, { x: 0, y: 0, z: 1.1 }, "#7ba7ff"],
+        ];
+        for (const [a, b, c] of axes) {
+          const pa = project(a), pb = project(b);
+          ctx.strokeStyle = c;
+          ctx.globalAlpha = 0.9;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(pa.sx, pa.sy);
+          ctx.lineTo(pb.sx, pb.sy);
+          ctx.stroke();
+        }
+      }
+
+      function render() {
+        const w = wrap.clientWidth, h = wrap.clientHeight;
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = "#0a0b0f";
+        ctx.fillRect(0, 0, w, h);
+        drawAxes();
+
+        const byId = new Map(nodes.map((n) => [n.id, n]));
+        for (const l of links) {
+          const a = byId.get(l.source_id);
+          const b = byId.get(l.target_id);
+          if (!a || !b) continue;
+          const pa = project({ x: a.x, y: a.y, z: a.z });
+          const pb = project({ x: b.x, y: b.y, z: b.z });
+          ctx.strokeStyle = linkColors[l.link_type] || "#8b91a0";
+          ctx.globalAlpha = Math.max(0.15, Math.min(0.95, l.strength || 0.2));
+          ctx.lineWidth = 1.1;
+          ctx.beginPath();
+          ctx.moveTo(pa.sx, pa.sy);
+          ctx.lineTo(pb.sx, pb.sy);
+          ctx.stroke();
+        }
+
+        const plotted = nodes.map((n) => {
+          const p = project({ x: n.x, y: n.y, z: n.z });
+          return { n, p };
+        }).sort((a, b) => a.p.depth - b.p.depth);
+
+        for (const { n, p } of plotted) {
+          const conf = Math.max(0.08, Math.min(1, n.confidence || 0.2));
+          const rc = Math.max(1, Number(n.reinforcement_count || 1));
+          const reinforceBoost = Math.min(10, Math.log2(rc + 1) * 3.2);
+          const r = 3 + conf * 7 + reinforceBoost;
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = commitmentColors[n.commitment_type] || "#cccccc";
+          ctx.beginPath();
+          ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+          ctx.fill();
+          // Visual cue for nodes that were deepened/reinforced instead of newly founded.
+          if (rc > 1) {
+            const ringAlpha = Math.min(0.85, 0.22 + rc * 0.06);
+            ctx.globalAlpha = ringAlpha;
+            ctx.strokeStyle = n.commitment_type === "deepening" ? "#8fb2ff" : "#a4ffd0";
+            ctx.lineWidth = 1.4 + Math.min(3, rc * 0.22);
+            ctx.beginPath();
+            ctx.arc(p.sx, p.sy, r + 2.2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
+          if (n.contested) {
+            ctx.strokeStyle = "#ff6b6b";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+        }
+      }
+
+      function tick() {
+        if (!dragging) yaw += 0.002;
+        render();
+        requestAnimationFrame(tick);
+      }
+      tick();
+
+      canvas.addEventListener("mousedown", (e) => {
+        dragging = true;
+        lx = e.clientX;
+        ly = e.clientY;
+      });
+      window.addEventListener("mouseup", () => { dragging = false; });
+      window.addEventListener("mousemove", (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - lx;
+        const dy = e.clientY - ly;
+        lx = e.clientX;
+        ly = e.clientY;
+        yaw += dx * 0.005;
+        pitch += dy * 0.005;
+        pitch = Math.max(-1.4, Math.min(1.4, pitch));
+      });
+      canvas.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        zoom *= e.deltaY > 0 ? 0.92 : 1.08;
+        zoom = Math.max(0.45, Math.min(2.4, zoom));
+      }, { passive: false });
+
+      refreshSpace = async () => {
+        try {
+          const r = await fetch("/api/space");
+          if (!r.ok) return;
+          const data = await r.json();
+          nodes = Array.isArray(data.nodes) ? data.nodes : [];
+          links = Array.isArray(data.links) ? data.links : [];
+        } catch {
+          // ignore
+        }
+      };
+      setInterval(refreshSpace, 2500);
+      refreshSpace();
+    }
+
+    init3D();
+
+    input.focus();
+  </script>
+</body>
+</html>
