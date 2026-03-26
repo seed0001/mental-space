@@ -118,13 +118,33 @@
     }
     textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124, 156, 255, 0.2); }
     textarea:disabled { opacity: 0.55; }
-    button.send {
+    button.send, button.listen, button.tts-toggle {
       padding: 0.65rem 1.1rem; border: none; border-radius: 10px;
       background: var(--accent); color: #0c0d10; font-weight: 600; font-size: 0.9rem;
       cursor: pointer; font-family: inherit;
     }
-    button.send:hover:not(:disabled) { filter: brightness(1.08); }
-    button.send:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.listen {
+      background: #2f3442;
+      color: var(--text);
+      border: 1px solid #3e4558;
+    }
+    button.listen.active {
+      background: #ff6b6b;
+      border-color: #ff8f8f;
+      color: #1b0f0f;
+    }
+    button.tts-toggle {
+      background: #2f3442;
+      color: var(--text);
+      border: 1px solid #3e4558;
+    }
+    button.tts-toggle.active {
+      background: #1f9159;
+      border-color: #49bb86;
+      color: #eafff4;
+    }
+    button.send:hover:not(:disabled), button.listen:hover:not(:disabled), button.tts-toggle:hover:not(:disabled) { filter: brightness(1.08); }
+    button.send:disabled, button.listen:disabled, button.tts-toggle:disabled { opacity: 0.45; cursor: not-allowed; }
     .status { font-size: 0.75rem; color: var(--muted); margin-top: 0.45rem; min-height: 1.1em; }
     .status.error { color: var(--error); }
     .empty-hint { color: var(--muted); font-size: 0.88rem; text-align: center; padding: 2rem 1rem; }
@@ -171,6 +191,8 @@
       <div class="composer">
         <form class="row" id="form">
           <textarea id="input" rows="2" placeholder="Message…" autocomplete="off"></textarea>
+          <button type="button" class="listen" id="listen">Start listening</button>
+          <button type="button" class="tts-toggle active" id="ttsToggle">Voice on</button>
           <button type="submit" class="send" id="send">Send</button>
         </form>
         <div class="status" id="status"></div>
@@ -191,6 +213,8 @@ z: active(-) ↔ contemplative(+)</div>
     const input = document.getElementById("input");
     const form = document.getElementById("form");
     const sendBtn = document.getElementById("send");
+    const listenBtn = document.getElementById("listen");
+    const ttsToggleBtn = document.getElementById("ttsToggle");
     const status = document.getElementById("status");
 
     function scrollBottom() {
@@ -253,12 +277,132 @@ z: active(-) ↔ contemplative(+)</div>
 
     let busy = false;
     let refreshSpace = async () => {};
+    let recognition = null;
+    let listening = false;
+    let finalSpeechText = "";
+    let interimSpeechText = "";
+    let ttsEnabled = true;
+    let activeAudio = null;
+
+    function setListeningUi(isListening) {
+      listening = isListening;
+      listenBtn.classList.toggle("active", isListening);
+      listenBtn.textContent = isListening ? "Stop listening" : "Start listening";
+    }
+
+    function updateInputFromSpeech() {
+      const base = finalSpeechText.trim();
+      const tail = interimSpeechText.trim();
+      input.value = [base, tail].filter(Boolean).join(base && tail ? " " : "");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    function initSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        listenBtn.disabled = true;
+        listenBtn.title = "Speech recognition is not supported in this browser.";
+        return;
+      }
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+
+      recognition.onstart = () => {
+        setListeningUi(true);
+        status.textContent = "Listening… press Stop listening when ready.";
+        status.classList.remove("error");
+      };
+
+      recognition.onresult = (event) => {
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const transcript = event.results[i][0].transcript.trim();
+          if (!transcript) continue;
+          if (event.results[i].isFinal) {
+            finalSpeechText = [finalSpeechText.trim(), transcript].filter(Boolean).join(" ");
+          } else {
+            interim += transcript + " ";
+          }
+        }
+        interimSpeechText = interim.trim();
+        updateInputFromSpeech();
+      };
+
+      recognition.onerror = (event) => {
+        if (event.error === "no-speech" || event.error === "aborted") return;
+        status.textContent = "Voice input error: " + event.error;
+        status.classList.add("error");
+      };
+
+      recognition.onend = () => {
+        setListeningUi(false);
+        interimSpeechText = "";
+        updateInputFromSpeech();
+        if (!busy) {
+          status.textContent = finalSpeechText ? "Voice captured. Press Send when ready." : "";
+        }
+      };
+    }
+
+    function toggleListening() {
+      if (!recognition || busy) return;
+      if (listening) {
+        recognition.stop();
+        return;
+      }
+      finalSpeechText = input.value.trim();
+      interimSpeechText = "";
+      updateInputFromSpeech();
+      recognition.start();
+    }
+
+    function setTtsUi() {
+      ttsToggleBtn.classList.toggle("active", ttsEnabled);
+      ttsToggleBtn.textContent = ttsEnabled ? "Voice on" : "Voice off";
+    }
+
+    async function playTts(text) {
+      if (!ttsEnabled) return;
+      if (!text || !text.trim()) return;
+      try {
+        const r = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        if (!r.ok) return;
+        const blob = await r.blob();
+        if (!blob.size) return;
+        if (activeAudio) {
+          activeAudio.pause();
+          activeAudio = null;
+        }
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        activeAudio = audio;
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+          if (activeAudio === audio) activeAudio = null;
+        };
+        audio.onerror = () => {
+          URL.revokeObjectURL(url);
+          if (activeAudio === audio) activeAudio = null;
+        };
+        await audio.play();
+      } catch {
+        status.textContent = "Voice playback blocked or failed. Click Voice on and send again.";
+        status.classList.add("error");
+      }
+    }
 
     async function submitMessage() {
       const text = input.value.trim();
       if (!text || busy) return;
       busy = true;
       sendBtn.disabled = true;
+      listenBtn.disabled = true;
       input.disabled = true;
       status.textContent = "Thinking…";
       status.classList.remove("error");
@@ -334,6 +478,9 @@ z: active(-) ↔ contemplative(+)</div>
             }
           }
         }
+        if (assistantBody && assistantBody.textContent && assistantBody.textContent.trim()) {
+          await playTts(assistantBody.textContent);
+        }
         status.textContent = "";
       } catch (e) {
         status.textContent = String(e.message || e);
@@ -341,7 +488,11 @@ z: active(-) ↔ contemplative(+)</div>
       } finally {
         busy = false;
         sendBtn.disabled = false;
+        listenBtn.disabled = !recognition;
         input.disabled = false;
+        finalSpeechText = "";
+        interimSpeechText = "";
+        setListeningUi(false);
         input.focus();
         scrollBottom();
       }
@@ -359,6 +510,19 @@ z: active(-) ↔ contemplative(+)</div>
       }
     });
 
+    listenBtn.addEventListener("click", () => {
+      toggleListening();
+    });
+
+    ttsToggleBtn.addEventListener("click", () => {
+      ttsEnabled = !ttsEnabled;
+      setTtsUi();
+      if (!ttsEnabled && activeAudio) {
+        activeAudio.pause();
+        activeAudio = null;
+      }
+    });
+
     function init3D() {
       const wrap = document.getElementById("spaceCanvasWrap");
       const canvas = document.createElement("canvas");
@@ -366,15 +530,17 @@ z: active(-) ↔ contemplative(+)</div>
       const ctx = canvas.getContext("2d");
       let nodes = [];
       let links = [];
+      let sceneTrails = {};
       let yaw = 0.9;
       let pitch = -0.35;
-      let zoom = 1.0;
+      let zoom = 1.18;
       let dragging = false;
       let lx = 0;
       let ly = 0;
 
         const commitmentColors = { recognition: "#6fe7a5", deepening: "#6f96ff", bridging: "#f7c66f", founding: "#df84ff" };
       const linkColors = { reinforcement: "#7ca1ff", bridge: "#f5c46a", tension: "#ff6b6b", sequence: "#8fd3c5" };
+      const sceneStateColors = { active: "#76f0a0", resolved: "#9aa6b7", closed: "#686f7f" };
 
       function resize() {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -397,11 +563,48 @@ z: active(-) ↔ contemplative(+)</div>
         const z2 = y * sp + z1 * cp;
         return { x: x1, y: y2, z: z2 };
       }
+      function beanify(pt) {
+        const bend = 0.22 * pt.y * pt.y - 0.18 * pt.z * pt.z - 0.12 * Math.max(0, pt.y);
+        return { x: pt.x + bend, y: pt.y, z: pt.z };
+      }
       function project(pt) {
-        const r = rot(pt);
+        const r = rot(beanify(pt));
         const w = wrap.clientWidth, h = wrap.clientHeight;
         const f = (220 * zoom) / (2.2 + r.z + 2.2);
         return { sx: w * 0.5 + r.x * f, sy: h * 0.52 - r.y * f, depth: r.z };
+      }
+      function drawBeanShell() {
+        for (let yi = -8; yi <= 8; yi += 1) {
+          const y = (yi / 8) * 0.82;
+          const rSlice = Math.sqrt(Math.max(0, 1 - (y * y) / (0.98 * 0.98)));
+          if (rSlice <= 0.02) continue;
+          ctx.beginPath();
+          let started = false;
+          for (let a = 0; a <= 64; a += 1) {
+            const t = (a / 64) * Math.PI * 2;
+            const p = {
+              x: 1.22 * rSlice * Math.cos(t),
+              y,
+              z: 0.88 * rSlice * Math.sin(t),
+            };
+            const q = project(p);
+            if (!started) {
+              ctx.moveTo(q.sx, q.sy);
+              started = true;
+            } else {
+              ctx.lineTo(q.sx, q.sy);
+            }
+          }
+          ctx.closePath();
+          ctx.globalAlpha = yi % 2 === 0 ? 0.08 : 0.04;
+          ctx.fillStyle = "#8fa1d6";
+          ctx.fill();
+          ctx.globalAlpha = 0.15;
+          ctx.strokeStyle = "#7083b8";
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
       }
       function drawAxes() {
         const axes = [
@@ -426,6 +629,7 @@ z: active(-) ↔ contemplative(+)</div>
         ctx.clearRect(0, 0, w, h);
         ctx.fillStyle = "#0a0b0f";
         ctx.fillRect(0, 0, w, h);
+        drawBeanShell();
         drawAxes();
 
         const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -444,6 +648,22 @@ z: active(-) ↔ contemplative(+)</div>
           ctx.stroke();
         }
 
+        for (const [sceneId, points] of Object.entries(sceneTrails || {})) {
+          if (!Array.isArray(points) || points.length < 2) continue;
+          const owner = nodes.find((n) => n.scene_id === sceneId);
+          const sState = owner?.scene_state || "closed";
+          ctx.strokeStyle = sceneStateColors[sState] || "#7f8896";
+          ctx.globalAlpha = sState === "active" ? 0.8 : 0.35;
+          ctx.lineWidth = sState === "active" ? 2.1 : 1.2;
+          ctx.beginPath();
+          for (let i = 0; i < points.length; i += 1) {
+            const p = project(points[i]);
+            if (i === 0) ctx.moveTo(p.sx, p.sy);
+            else ctx.lineTo(p.sx, p.sy);
+          }
+          ctx.stroke();
+        }
+
         const plotted = nodes.map((n) => {
           const p = project({ x: n.x, y: n.y, z: n.z });
           return { n, p };
@@ -459,6 +679,14 @@ z: active(-) ↔ contemplative(+)</div>
           ctx.beginPath();
           ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
           ctx.fill();
+          const sState = n.scene_state || "closed";
+          ctx.globalAlpha = 0.95;
+          ctx.strokeStyle = sceneStateColors[sState] || "#7f8896";
+          ctx.lineWidth = sState === "active" ? 2.6 : sState === "resolved" ? 1.8 : 1.2;
+          ctx.beginPath();
+          ctx.arc(p.sx, p.sy, r + 4.4, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
           // Visual cue for nodes that were deepened/reinforced instead of newly founded.
           if (rc > 1) {
             const ringAlpha = Math.min(0.85, 0.22 + rc * 0.06);
@@ -514,6 +742,7 @@ z: active(-) ↔ contemplative(+)</div>
           const data = await r.json();
           nodes = Array.isArray(data.nodes) ? data.nodes : [];
           links = Array.isArray(data.links) ? data.links : [];
+          sceneTrails = data.scene_trails && typeof data.scene_trails === "object" ? data.scene_trails : {};
         } catch {
           // ignore
         }
@@ -523,6 +752,8 @@ z: active(-) ↔ contemplative(+)</div>
     }
 
     init3D();
+    initSpeechRecognition();
+    setTtsUi();
 
     input.focus();
   </script>

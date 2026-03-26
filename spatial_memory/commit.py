@@ -7,6 +7,7 @@ from typing import Sequence
 from spatial_memory.math_util import cosine_similarity
 from spatial_memory.models import CommitmentType, Decision, LinkType, MemoryLink, MemoryNode, Orientation, SourceType
 from spatial_memory.ollama_client import embed
+from spatial_memory.space_shape import constrain_to_bean_space
 from spatial_memory import store
 
 
@@ -89,10 +90,13 @@ def commit_to_memory(
     decision: Decision,
     neighborhood: Sequence[MemoryNode],
     per_node_resonance: dict[str, float],
+    *,
+    force_target_node_id: str | None = None,
     db_path: str | None = None,
 ) -> MemoryNode | None:
     now = _now()
     ctype = decision.commitment_type
+    forced_node = store.get_node(force_target_node_id, db_path=db_path) if force_target_node_id else None
 
     if decision.caution_internal_conflict:
         for n in neighborhood:
@@ -102,7 +106,7 @@ def commit_to_memory(
             store.update_node(n, db_path=db_path)
 
     if ctype == CommitmentType.RECOGNITION:
-        node = _best_node(neighborhood, per_node_resonance)
+        node = forced_node or _best_node(neighborhood, per_node_resonance)
         if node is None:
             return _found_new(
                 raw_message,
@@ -125,7 +129,7 @@ def commit_to_memory(
         return node
 
     if ctype == CommitmentType.DEEPENING:
-        node = _best_node(neighborhood, per_node_resonance)
+        node = forced_node or _best_node(neighborhood, per_node_resonance)
         if node is None:
             return _found_new(
                 raw_message,
@@ -153,6 +157,13 @@ def commit_to_memory(
         node.confidence = min(0.98, node.confidence + 0.04)
         node.current_relevance = min(1.0, node.current_relevance + 0.12)
         node.commitment_type = CommitmentType.DEEPENING
+        # Scene dynamics: center of mass shifts as the scene evolves.
+        blend = 0.28
+        node.x, node.y, node.z = constrain_to_bean_space(
+            node.x * (1.0 - blend) + x * blend,
+            node.y * (1.0 - blend) + y * blend,
+            node.z * (1.0 - blend) + z * blend,
+        )
         node.self_other_score = orientation.self_other
         node.known_unknown_score = orientation.known_unknown
         node.active_contemplative_score = orientation.active_contemplative
@@ -161,6 +172,37 @@ def commit_to_memory(
         return node
 
     if ctype == CommitmentType.BRIDGING:
+        if forced_node is not None:
+            # Active-scene mode: bridging still enriches one evolving scene memory.
+            ctype = CommitmentType.DEEPENING
+            node = forced_node
+            merged = (
+                node.understanding.strip()
+                + "\n---\nUser message:\n"
+                + raw_message.strip()
+                + "\n\nAgent understanding:\n"
+                + response_text.strip()
+            )[:6000]
+            node.understanding = merged
+            node.original_text = raw_message
+            node.embedding_json = _dump_emb(embed(merged[:8000]))
+            node.reinforcement_count += 1
+            node.last_activation = now
+            node.confidence = min(0.98, node.confidence + 0.04)
+            node.current_relevance = min(1.0, node.current_relevance + 0.12)
+            node.commitment_type = CommitmentType.DEEPENING
+            blend = 0.28
+            node.x, node.y, node.z = constrain_to_bean_space(
+                node.x * (1.0 - blend) + x * blend,
+                node.y * (1.0 - blend) + y * blend,
+                node.z * (1.0 - blend) + z * blend,
+            )
+            node.self_other_score = orientation.self_other
+            node.known_unknown_score = orientation.known_unknown
+            node.active_contemplative_score = orientation.active_contemplative
+            node.orientation_prompt_version = orientation.classifier_prompt_version or node.orientation_prompt_version
+            store.update_node(node, db_path=db_path)
+            return node
         a = _best_node(neighborhood, per_node_resonance)
         b = _second_node(neighborhood, per_node_resonance, a.id) if a else None
         if a is None or b is None or per_node_resonance.get(b.id, 0) < 0.18:
@@ -217,13 +259,14 @@ def _found_new(
     )[:6000]
     vec = embed(understanding[:8000])
     resonance_max = max(per_node_resonance.values()) if per_node_resonance else 0.0
+    cx, cy, cz = constrain_to_bean_space(x, y, z)
     node = MemoryNode(
         id=store.new_id(),
         original_text=raw_message,
         understanding=understanding,
-        x=x,
-        y=y,
-        z=z,
+        x=cx,
+        y=cy,
+        z=cz,
         self_other_score=orientation.self_other,
         known_unknown_score=orientation.known_unknown,
         active_contemplative_score=orientation.active_contemplative,

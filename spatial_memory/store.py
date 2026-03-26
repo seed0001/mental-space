@@ -4,6 +4,7 @@ import json
 import sqlite3
 import uuid
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import Iterator
 
 from spatial_memory.config import DB_PATH
@@ -53,6 +54,40 @@ CREATE INDEX IF NOT EXISTS idx_ml_target ON memory_links(target_id);
 
 DDL_META = """
 CREATE TABLE IF NOT EXISTS spatial_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+"""
+
+DDL_SCENES = """
+CREATE TABLE IF NOT EXISTS memory_scenes (
+  id TEXT PRIMARY KEY,
+  node_id TEXT NOT NULL UNIQUE,
+  state TEXT NOT NULL,
+  opened_at TEXT NOT NULL,
+  last_event_at TEXT NOT NULL,
+  closed_at TEXT,
+  participants_json TEXT NOT NULL DEFAULT '[]',
+  continuity_score REAL NOT NULL DEFAULT 0.0,
+  close_reason TEXT NOT NULL DEFAULT '',
+  event_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_scenes_state ON memory_scenes(state);
+CREATE INDEX IF NOT EXISTS idx_scenes_last_event ON memory_scenes(last_event_at);
+"""
+
+DDL_SCENE_EVENTS = """
+CREATE TABLE IF NOT EXISTS scene_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scene_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  user_message TEXT NOT NULL,
+  assistant_response TEXT NOT NULL,
+  x REAL NOT NULL,
+  y REAL NOT NULL,
+  z REAL NOT NULL,
+  commitment_type TEXT NOT NULL,
+  confidence REAL NOT NULL,
+  caution INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_scene_events_scene ON scene_events(scene_id, id DESC);
 """
 
 
@@ -127,6 +162,8 @@ def init_db(db_path: str | None = None) -> None:
         )
         conn.executescript(DDL_LINKS)
         conn.executescript(DDL_META)
+        conn.executescript(DDL_SCENES)
+        conn.executescript(DDL_SCENE_EVENTS)
         _migrate_json_links_to_table(conn)
 
 
@@ -134,6 +171,8 @@ def clear_all_nodes(db_path: str | None = None) -> int:
     """DELETE all rows; keeps file, schema, indexes."""
     init_db(db_path)
     with connect(db_path) as conn:
+        conn.execute("DELETE FROM scene_events")
+        conn.execute("DELETE FROM memory_scenes")
         conn.execute("DELETE FROM memory_links")
         cur = conn.execute("DELETE FROM memory_nodes")
         deleted = cur.rowcount
@@ -265,13 +304,24 @@ def graph_snapshot(db_path: str | None = None) -> dict:
     init_db(db_path)
     with connect(db_path) as conn:
         nrows = conn.execute(
-            """SELECT id, x, y, z, confidence, reinforcement_count, commitment_type,
-                      contested, current_relevance, certainty, understanding
-               FROM memory_nodes"""
+            """SELECT n.id, n.x, n.y, n.z, n.confidence, n.reinforcement_count, n.commitment_type,
+                      n.contested, n.current_relevance, n.certainty, n.understanding,
+                      COALESCE(s.id, '') AS scene_id,
+                      COALESCE(s.state, 'closed') AS scene_state,
+                      COALESCE(s.event_count, 0) AS scene_event_count,
+                      COALESCE(s.continuity_score, 0.0) AS scene_continuity,
+                      COALESCE(s.close_reason, '') AS scene_close_reason
+               FROM memory_nodes n
+               LEFT JOIN memory_scenes s ON s.node_id = n.id"""
         ).fetchall()
         lrows = conn.execute(
             """SELECT source_id, target_id, link_type, strength
                FROM memory_links"""
+        ).fetchall()
+        erows = conn.execute(
+            """SELECT scene_id, id, x, y, z
+               FROM scene_events
+               ORDER BY scene_id, id ASC"""
         ).fetchall()
     nodes = [
         {
@@ -286,6 +336,11 @@ def graph_snapshot(db_path: str | None = None) -> dict:
             "current_relevance": float(r["current_relevance"]),
             "certainty": float(r["certainty"]),
             "label": (r["understanding"] or "")[:160],
+            "scene_id": r["scene_id"],
+            "scene_state": r["scene_state"],
+            "scene_event_count": int(r["scene_event_count"]),
+            "scene_continuity": float(r["scene_continuity"]),
+            "scene_close_reason": r["scene_close_reason"],
         }
         for r in nrows
     ]
@@ -298,4 +353,142 @@ def graph_snapshot(db_path: str | None = None) -> dict:
         }
         for r in lrows
     ]
-    return {"nodes": nodes, "links": links}
+    trails_by_scene: dict[str, list[dict]] = {}
+    for r in erows:
+        sid = str(r["scene_id"] or "")
+        if not sid:
+            continue
+        trails_by_scene.setdefault(sid, []).append(
+            {
+                "x": float(r["x"]),
+                "y": float(r["y"]),
+                "z": float(r["z"]),
+            }
+        )
+    return {"nodes": nodes, "links": links, "scene_trails": trails_by_scene}
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def create_scene(scene_id: str, node_id: str, *, participants: list[str] | None = None, db_path: str | None = None) -> None:
+    now = _utc_now()
+    pj = json.dumps(participants or ["user", "assistant"])
+    with connect(db_path) as conn:
+        conn.execute(
+            """INSERT OR REPLACE INTO memory_scenes
+               (id, node_id, state, opened_at, last_event_at, closed_at, participants_json, continuity_score, close_reason, event_count)
+               VALUES (?, ?, 'active', ?, ?, NULL, ?, 0.0, '', 0)""",
+            (scene_id, node_id, now, now, pj),
+        )
+
+
+def get_active_scene(db_path: str | None = None) -> dict | None:
+    init_db(db_path)
+    with connect(db_path) as conn:
+        row = conn.execute(
+            """SELECT * FROM memory_scenes
+               WHERE state = 'active'
+               ORDER BY last_event_at DESC
+               LIMIT 1"""
+        ).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    try:
+        d["participants"] = json.loads(d.get("participants_json") or "[]")
+    except json.JSONDecodeError:
+        d["participants"] = ["user", "assistant"]
+    return d
+
+
+def close_scene(scene_id: str, reason: str, *, db_path: str | None = None) -> None:
+    now = _utc_now()
+    with connect(db_path) as conn:
+        conn.execute(
+            """UPDATE memory_scenes
+               SET state = 'closed', closed_at = ?, close_reason = ?
+               WHERE id = ?""",
+            (now, reason[:64], scene_id),
+        )
+
+
+def touch_scene(scene_id: str, *, continuity_score: float, db_path: str | None = None) -> None:
+    now = _utc_now()
+    with connect(db_path) as conn:
+        conn.execute(
+            """UPDATE memory_scenes
+               SET state = 'active',
+                   last_event_at = ?,
+                   continuity_score = ?,
+                   event_count = event_count + 1
+               WHERE id = ?""",
+            (now, float(continuity_score), scene_id),
+        )
+
+
+def append_scene_event(
+    scene_id: str,
+    *,
+    user_message: str,
+    assistant_response: str,
+    x: float,
+    y: float,
+    z: float,
+    commitment_type: str,
+    confidence: float,
+    caution: bool,
+    db_path: str | None = None,
+) -> None:
+    now = _utc_now()
+    with connect(db_path) as conn:
+        conn.execute(
+            """INSERT INTO scene_events
+               (scene_id, created_at, user_message, assistant_response, x, y, z, commitment_type, confidence, caution)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                scene_id,
+                now,
+                user_message,
+                assistant_response,
+                float(x),
+                float(y),
+                float(z),
+                commitment_type,
+                float(confidence),
+                1 if caution else 0,
+            ),
+        )
+
+
+def recent_scene_events(scene_id: str, *, limit: int = 10, db_path: str | None = None) -> list[dict]:
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            """SELECT * FROM scene_events
+               WHERE scene_id = ?
+               ORDER BY id DESC
+               LIMIT ?""",
+            (scene_id, int(max(1, limit))),
+        ).fetchall()
+    out = [dict(r) for r in rows]
+    out.reverse()
+    return out
+
+
+def get_scene_by_node_id(node_id: str, db_path: str | None = None) -> dict | None:
+    with connect(db_path) as conn:
+        row = conn.execute(
+            """SELECT * FROM memory_scenes
+               WHERE node_id = ?
+               LIMIT 1""",
+            (node_id,),
+        ).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    try:
+        d["participants"] = json.loads(d.get("participants_json") or "[]")
+    except json.JSONDecodeError:
+        d["participants"] = ["user", "assistant"]
+    return d
