@@ -12,6 +12,16 @@ def _client() -> httpx.Client:
     return httpx.Client(base_url=OLLAMA_BASE_URL, timeout=120.0)
 
 
+def _merge_ollama_options(base: dict[str, Any], extra: dict[str, Any] | None) -> dict[str, Any]:
+    out = dict(base)
+    if not extra:
+        return out
+    for k, v in extra.items():
+        if v is not None:
+            out[k] = v
+    return out
+
+
 def chat(
     system: str,
     user: str,
@@ -19,6 +29,7 @@ def chat(
     model: str | None = None,
     temperature: float = 0.0,
     json_mode: bool = False,
+    options: dict[str, Any] | None = None,
 ) -> str:
     m = model or LLAMA_MODEL
     payload: dict[str, Any] = {
@@ -28,7 +39,7 @@ def chat(
             {"role": "user", "content": user},
         ],
         "stream": False,
-        "options": {"temperature": temperature},
+        "options": _merge_ollama_options({"temperature": temperature}, options),
     }
     if json_mode:
         payload["format"] = "json"
@@ -54,6 +65,7 @@ def chat_stream(
     *,
     model: str | None = None,
     temperature: float = 0.4,
+    options: dict[str, Any] | None = None,
 ):
     m = model or LLAMA_MODEL
     payload: dict[str, Any] = {
@@ -63,7 +75,7 @@ def chat_stream(
             {"role": "user", "content": user},
         ],
         "stream": True,
-        "options": {"temperature": temperature},
+        "options": _merge_ollama_options({"temperature": temperature}, options),
     }
     with _client() as c:
         with c.stream("POST", "/api/chat", json=payload) as r:

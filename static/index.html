@@ -4,19 +4,24 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Spatial memory</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
   <style>
     :root {
-      --bg: #0c0d10;
-      --surface: #14161c;
-      --border: #2a2d36;
-      --text: #e8eaef;
-      --muted: #8b919d;
+      --bg: #000000;
+      --surface: #0a0a0a;
+      --border: #222;
+      --text: #e6e6e6;
+      --muted: #6a6a6a;
       --accent: #7c9cff;
-      --user-bg: #1e2433;
-      --assistant-bg: #181b22;
+      --user-bg: #141414;
+      --assistant-bg: #0d0d0d;
       --error: #ff6b6b;
     }
     * { box-sizing: border-box; }
@@ -25,191 +30,959 @@
       margin: 0;
       background: var(--bg);
       color: var(--text);
-      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
       font-size: 15px;
-      line-height: 1.55;
+      line-height: 1.5;
       overflow: hidden;
     }
-    .app {
+    .layout {
       display: grid;
-      grid-template-columns: minmax(420px, 1fr) minmax(380px, 0.95fr);
+      grid-template-columns: minmax(0, 1fr) minmax(0, min(880px, 100%)) minmax(0, 1fr);
+      width: 100%;
       height: 100dvh;
-      overflow: hidden;
+      min-height: 0;
+      background: var(--bg);
     }
-    .chat-pane {
-      display: flex;
-      flex-direction: column;
-      border-right: 1px solid var(--border);
+    .side-col {
       min-width: 0;
       min-height: 0;
-      overflow: hidden;
+      background: var(--bg);
     }
-    .space-pane {
+    .side-col--left {
+      border-right: 1px solid rgba(103, 232, 249, 0.1);
       display: flex;
       flex-direction: column;
-      min-width: 0;
-      min-height: 0;
-      background: #0a0b0f;
-      overflow: hidden;
+      align-items: stretch;
+      padding: 0.8rem 0.55rem 0.95rem 0.95rem;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
-    header {
+    .side-col--right {
+      border-left: 1px solid rgba(103, 232, 249, 0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 0.8rem 0.95rem 0.95rem 0.55rem;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+    .right-stack-panel,
+    .left-stack-panel {
+      width: min(100%, calc(375px + 0.25in));
+      box-sizing: border-box;
+      position: relative;
+      padding: 1.05rem 1.2rem 1.25rem;
+      font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+      font-size: 0.9rem;
+      letter-spacing: 0.04em;
+      color: rgba(204, 245, 255, 0.92);
+      background: linear-gradient(160deg, rgba(8, 28, 38, 0.94) 0%, rgba(0, 10, 16, 0.92) 100%);
+      border: 1px solid rgba(103, 232, 249, 0.38);
+      box-shadow:
+        0 0 0 1px rgba(34, 211, 238, 0.12),
+        inset 0 0 40px rgba(34, 211, 238, 0.05),
+        0 0 35px rgba(13, 148, 136, 0.18);
+    }
+    .right-stack-panel {
+      align-self: flex-end;
+    }
+    .left-stack-panel {
+      align-self: flex-start;
       flex-shrink: 0;
-      padding: 0.85rem 1.1rem;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
     }
-    header h1 {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 600;
-      letter-spacing: 0.02em;
+    .memory-field-panel {
+      flex: 1 1 12rem;
+      min-height: 12rem;
+      width: min(100%, calc(375px + 0.25in));
+      align-self: flex-start;
+      display: flex;
+      flex-direction: column;
+      margin-top: 0.65rem;
+      overflow: hidden;
+      position: relative;
     }
-    header p {
-      margin: 0.25rem 0 0;
-      font-size: 0.78rem;
-      color: var(--muted);
+    .left-stack-panel.memory-field-panel {
+      flex-shrink: 1;
+      flex-grow: 1;
     }
-    #log {
+    .memory-field-panel__inner {
+      position: relative;
+      z-index: 2;
       flex: 1;
       min-height: 0;
-      overflow-y: auto;
-      padding: 1rem 1rem 1.25rem;
       display: flex;
       flex-direction: column;
-      gap: 0.85rem;
+    }
+    .memory-field-hint {
+      font-size: 0.62rem;
+      color: rgba(148, 200, 220, 0.45);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin: 0 0 0.45rem;
+    }
+    .memory-field-canvas-wrap {
+      flex: 1;
+      min-height: 140px;
+      position: relative;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid rgba(103, 232, 249, 0.2);
+      background: radial-gradient(ellipse 80% 80% at 50% 42%, rgba(12, 55, 72, 0.5) 0%, rgba(0, 0, 0, 0.96) 100%);
+    }
+    .memory-field-canvas-wrap canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+    .spatial-field-panel {
+      margin-top: 0.65rem;
+      flex-shrink: 0;
+    }
+    .spatial-field-panel--idle .spatial-field-readout {
+      opacity: 0.42;
+    }
+    .spatial-field-readout {
+      position: relative;
+      z-index: 2;
+    }
+    .spatial-field-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.35rem 0.65rem;
+      align-items: baseline;
+      font-size: 0.78rem;
+      margin-bottom: 0.55rem;
+    }
+    .spatial-field-k {
+      color: rgba(148, 200, 220, 0.55);
+      text-transform: uppercase;
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+    }
+    .spatial-field-v {
+      color: #ecfeff;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 10px rgba(34, 211, 238, 0.22);
+      word-break: break-word;
+    }
+    .spatial-field-v--caution {
+      color: rgba(251, 191, 36, 0.95);
+    }
+    .spatial-field-v--ok {
+      color: rgba(52, 211, 153, 0.85);
+    }
+    .spatial-field-idle-msg {
+      position: relative;
+      z-index: 2;
+      font-size: 0.72rem;
+      color: rgba(148, 200, 220, 0.45);
+      letter-spacing: 0.06em;
+      margin: 0 0 0.5rem;
+    }
+    .spatial-field-rationale {
+      position: relative;
+      z-index: 2;
+      margin: 0;
+      padding-top: 0.45rem;
+      border-top: 1px solid rgba(34, 211, 238, 0.15);
+      font-size: 0.7rem;
+      line-height: 1.4;
+      color: rgba(165, 243, 252, 0.72);
+      max-height: 5.25rem;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .right-stack-panel::before,
+    .left-stack-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.12) 2px,
+        rgba(0, 0, 0, 0.12) 3px
+      );
+      pointer-events: none;
+      opacity: 0.35;
+      border-radius: inherit;
+    }
+    .hud-panel {
+      flex-shrink: 0;
+    }
+    @keyframes hud-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+    @keyframes hud-scan {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+    .hud-scanline {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 28%;
+      top: 0;
+      background: linear-gradient(
+        180deg,
+        transparent,
+        rgba(34, 211, 238, 0.04),
+        transparent
+      );
+      animation: hud-scan 4.5s linear infinite;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .hud-bracket {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-color: rgba(165, 243, 252, 0.75);
+      border-style: solid;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .hud-bracket--tl { top: -1px; left: -1px; border-width: 3px 0 0 3px; }
+    .hud-bracket--tr { top: -1px; right: -1px; border-width: 3px 3px 0 0; }
+    .hud-bracket--bl { bottom: -1px; left: -1px; border-width: 0 0 3px 3px; }
+    .hud-bracket--br { bottom: -1px; right: -1px; border-width: 0 3px 3px 0; }
+    .hud-title {
+      position: relative;
+      z-index: 2;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: rgba(103, 232, 249, 0.75);
+      margin-bottom: 0.8rem;
+      padding-bottom: 0.55rem;
+      border-bottom: 1px solid rgba(34, 211, 238, 0.22);
+    }
+    .hud-block {
+      position: relative;
+      z-index: 2;
+    }
+    .hud-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.6rem;
+      margin-bottom: 0.44rem;
+    }
+    .hud-row--tight { margin-bottom: 0.25rem; }
+    .hud-label {
+      color: rgba(148, 200, 220, 0.65);
+      text-transform: uppercase;
+      font-size: 0.725rem;
+      letter-spacing: 0.12em;
+    }
+    .hud-value {
+      color: #ecfeff;
+      text-align: right;
+      text-shadow: 0 0 14px rgba(34, 211, 238, 0.35);
+    }
+    .hud-value--dim { color: rgba(180, 220, 230, 0.55); font-size: 0.8125rem; }
+    .hud-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.95rem;
+    }
+    .hud-status-led {
+      width: 9px;
+      height: 9px;
+      border-radius: 1px;
+      background: #34d399;
+      box-shadow: 0 0 12px #34d399, 0 0 22px rgba(52, 211, 153, 0.5);
+      animation: hud-blink 2s ease-in-out infinite;
+    }
+    .hud-status-led.warn {
+      background: #fbbf24;
+      box-shadow: 0 0 10px #fbbf24;
+      animation: none;
+    }
+    .hud-status-led.err {
+      background: #f87171;
+      box-shadow: 0 0 10px #f87171;
+      animation: none;
+    }
+    .hud-metric {
+      margin-top: 0.7rem;
+    }
+    .hud-metric-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.3rem;
+    }
+    .hud-metric-name {
+      font-size: 0.725rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: rgba(165, 243, 252, 0.55);
+    }
+    .hud-metric-pct {
+      font-size: 0.975rem;
+      font-weight: 600;
+      color: #a5f3fc;
+      font-variant-numeric: tabular-nums;
+    }
+    .hud-bar {
+      height: 6px;
+      background: rgba(0, 30, 40, 0.85);
+      border: 1px solid rgba(103, 232, 249, 0.2);
+      position: relative;
+      overflow: hidden;
+    }
+    .hud-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #0e7490, #22d3ee, #a5f3fc);
+      box-shadow: 0 0 18px rgba(34, 211, 238, 0.45);
+      transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .hud-bar-fill--warm {
+      background: linear-gradient(90deg, #b45309, #fbbf24, #fde68a);
+      box-shadow: 0 0 18px rgba(251, 191, 36, 0.4);
+    }
+    .hud-bar-fill--hot {
+      background: linear-gradient(90deg, #991b1b, #f87171, #fecaca);
+      box-shadow: 0 0 18px rgba(248, 113, 113, 0.45);
+    }
+    .hud-sub {
+      font-size: 0.725rem;
+      color: rgba(148, 190, 205, 0.5);
+      margin-top: 0.2rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .hud-offline {
+      color: rgba(248, 113, 113, 0.85);
+      font-size: 0.78rem;
+      margin-top: 0.45rem;
+    }
+    .persona-panel {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      margin-top: 0.75rem;
+    }
+    .persona-panel__inner {
+      position: relative;
+      z-index: 2;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .persona-panel__title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: rgba(103, 232, 249, 0.75);
+      margin-bottom: 0.8rem;
+      padding-bottom: 0.55rem;
+      border-bottom: 1px solid rgba(34, 211, 238, 0.22);
+    }
+    .persona-panel__subtitle {
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: rgba(165, 243, 252, 0.55);
+      margin: 0.55rem 0 0.35rem;
+    }
+    .persona-panel__editor {
+      flex: 1;
+      min-height: 140px;
+      width: 100%;
+      resize: vertical;
+      padding: 0.55rem 0.65rem;
+      border: 1px solid rgba(103, 232, 249, 0.22);
+      border-radius: 6px;
+      background: rgba(0, 12, 18, 0.9);
+      color: #ecfeff;
+      font: inherit;
+      line-height: 1.45;
+    }
+    .persona-panel__editor:focus {
+      outline: none;
+      border-color: rgba(34, 211, 238, 0.45);
+      box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.2);
+    }
+    .persona-panel__editor--readonly {
+      opacity: 0.95;
+      background: rgba(4, 18, 28, 0.88);
+    }
+    .persona-panel__hint {
+      width: 100%;
+      min-height: 4.5rem;
+      resize: vertical;
+      padding: 0.5rem 0.6rem;
+      border: 1px solid rgba(103, 232, 249, 0.2);
+      border-radius: 6px;
+      background: rgba(0, 10, 16, 0.92);
+      color: #e0f7fa;
+      font: inherit;
+      line-height: 1.4;
+      margin-bottom: 0.45rem;
+    }
+    .persona-panel__hint:focus {
+      outline: none;
+      border-color: rgba(34, 211, 238, 0.4);
+    }
+    .persona-panel__row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 0.5rem;
+    }
+    .persona-panel__row--split {
+      justify-content: stretch;
+    }
+    .persona-panel__row--split .persona-btn {
+      flex: 1;
+      min-width: 0;
+    }
+    .persona-btn {
+      padding: 0.45rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid rgba(103, 232, 249, 0.35);
+      background: rgba(8, 32, 44, 0.85);
+      color: #a5f3fc;
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .persona-btn:hover:not(:disabled) {
+      background: rgba(12, 48, 64, 0.9);
+      border-color: rgba(165, 243, 252, 0.45);
+    }
+    .persona-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .persona-btn--primary {
+      border-color: rgba(34, 211, 238, 0.45);
+      color: #ecfeff;
+    }
+    .persona-btn--accent {
+      background: linear-gradient(180deg, rgba(14, 116, 144, 0.55), rgba(8, 60, 80, 0.9));
+      border-color: rgba(34, 211, 238, 0.5);
+      color: #fff;
+    }
+    .persona-check {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.725rem;
+      color: rgba(165, 243, 252, 0.65);
+      margin: 0.15rem 0 0.4rem;
+      cursor: pointer;
+    }
+    .persona-check input {
+      accent-color: #22d3ee;
+    }
+    .persona-enhanced-wrap {
+      margin-top: 0.35rem;
+      padding-top: 0.35rem;
+      border-top: 1px dashed rgba(103, 232, 249, 0.2);
+    }
+    .persona-panel__status {
+      margin: 0.5rem 0 0;
+      font-size: 0.725rem;
+      color: rgba(148, 200, 220, 0.65);
+      min-height: 1.2em;
+    }
+    .persona-panel__status.error {
+      color: rgba(248, 113, 113, 0.9);
+    }
+    .persona-panel__path {
+      margin: 0.35rem 0 0;
+      font-size: 0.62rem;
+      color: rgba(148, 200, 220, 0.5);
+      word-break: break-all;
+    }
+    .model-panel__inner {
+      position: relative;
+      z-index: 2;
+    }
+    .model-field {
+      margin-bottom: 0.65rem;
+    }
+    .model-field:last-of-type {
+      margin-bottom: 0.35rem;
+    }
+    .model-field label {
+      display: block;
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: rgba(165, 243, 252, 0.55);
+      margin-bottom: 0.3rem;
+    }
+    .model-select,
+    .model-input {
+      width: 100%;
+      padding: 0.45rem 0.55rem;
+      border: 1px solid rgba(103, 232, 249, 0.22);
+      border-radius: 6px;
+      background: rgba(0, 12, 18, 0.9);
+      color: #ecfeff;
+      font: inherit;
+      font-size: 0.8125rem;
+    }
+    .model-select:focus,
+    .model-input:focus {
+      outline: none;
+      border-color: rgba(34, 211, 238, 0.45);
+      box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.2);
+    }
+    .model-input::placeholder {
+      color: rgba(148, 200, 220, 0.35);
+    }
+    .model-row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+    .model-row-2 .model-field {
+      margin-bottom: 0.5rem;
+    }
+    .model-actions {
+      display: flex;
+      gap: 0.45rem;
+      margin-top: 0.35rem;
+      flex-wrap: wrap;
+    }
+    .model-actions .persona-btn {
+      flex: 1;
+      min-width: 0;
+    }
+    .model-panel__status {
+      margin: 0.55rem 0 0;
+      font-size: 0.68rem;
+      color: rgba(148, 200, 220, 0.55);
+      min-height: 1.1em;
+      word-break: break-word;
+    }
+    .model-panel__status.error {
+      color: rgba(248, 113, 113, 0.9);
+    }
+    .layout__main {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .chat-column-glow {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 4;
+      box-shadow:
+        inset 0 0 45px 1px rgba(165, 243, 252, 0.5),
+        inset 0 0 85px 14px rgba(34, 211, 238, 0.32),
+        inset 0 0 150px 36px rgba(13, 148, 136, 0.14),
+        inset 0 0 8px 0 rgba(255, 255, 255, 0.28);
+      animation: chat-column-glow-pulse 3.4s ease-in-out infinite;
+    }
+    .app {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      height: 100%;
+      background: var(--bg);
+    }
+    .chat-area {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+    }
+    .reactor-scene {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    #reactorCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #log {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      overflow-y: auto;
+      padding: 1rem 1rem 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      background: transparent;
     }
     .bubble {
       max-width: 92%;
-      padding: 0.75rem 0.95rem;
+      padding: 0.65rem 0.85rem;
       border-radius: 12px;
       border: 1px solid var(--border);
     }
-    .bubble.user { align-self: flex-end; background: var(--user-bg); border-color: #30384a; }
+    .bubble.user { align-self: flex-end; background: var(--user-bg); }
     .bubble.assistant { align-self: flex-start; background: var(--assistant-bg); }
     .bubble .label {
-      font-size: 0.68rem;
+      font-size: 0.65rem;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--muted);
-      margin-bottom: 0.35rem;
+      margin-bottom: 0.3rem;
       font-weight: 500;
     }
     .bubble p { margin: 0; white-space: pre-wrap; word-break: break-word; }
     .meta {
-      margin-top: 0.55rem;
-      padding-top: 0.5rem;
+      margin-top: 0.45rem;
+      padding-top: 0.45rem;
       border-top: 1px solid var(--border);
-      font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: 0.72rem;
+      font-family: ui-monospace, monospace;
+      font-size: 0.68rem;
       color: var(--muted);
     }
     .composer {
       flex-shrink: 0;
-      padding: 0.75rem 1rem 1rem;
-      border-top: 1px solid var(--border);
-      background: var(--surface);
-      overflow: hidden;
+      padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
     }
-    .row { display: flex; gap: 0.5rem; align-items: flex-end; }
+    .row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-end;
+      max-width: 720px;
+      margin: 0 auto;
+    }
     textarea {
-      flex: 1; min-height: 44px; max-height: 160px; resize: vertical;
-      padding: 0.65rem 0.85rem; border-radius: 10px; border: 1px solid var(--border);
-      background: var(--bg); color: var(--text); font: inherit; line-height: 1.45;
-    }
-    textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124, 156, 255, 0.2); }
-    textarea:disabled { opacity: 0.55; }
-    button.send, button.listen, button.tts-toggle {
-      padding: 0.65rem 1.1rem; border: none; border-radius: 10px;
-      background: var(--accent); color: #0c0d10; font-weight: 600; font-size: 0.9rem;
-      cursor: pointer; font-family: inherit;
-    }
-    button.listen {
-      background: #2f3442;
+      flex: 1;
+      min-height: 48px;
+      max-height: 160px;
+      resize: vertical;
+      padding: 0.7rem 0.9rem;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
       color: var(--text);
-      border: 1px solid #3e4558;
+      font: inherit;
+      line-height: 1.45;
     }
-    button.listen.active {
-      background: #ff6b6b;
-      border-color: #ff8f8f;
-      color: #1b0f0f;
+    textarea:focus {
+      outline: none;
+      border-color: #444;
+      box-shadow: 0 0 0 2px rgba(124, 156, 255, 0.15);
     }
-    button.tts-toggle {
-      background: #2f3442;
+    textarea:disabled { opacity: 0.5; }
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      min-width: 48px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
       color: var(--text);
-      border: 1px solid #3e4558;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .icon-btn svg { width: 22px; height: 22px; opacity: 0.9; }
+    .icon-btn:hover:not(:disabled) { filter: brightness(1.12); border-color: #333; }
+    .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .icon-btn.listen.active {
+      background: #3d1515;
+      border-color: #ff6b6b;
+      color: #ffb4b4;
+    }
+    button.send, button.tts-toggle {
+      padding: 0.65rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      font-family: inherit;
+      min-height: 48px;
+    }
+    button.send {
+      background: var(--accent);
+      color: #0a0a0a;
+      border-color: transparent;
     }
     button.tts-toggle.active {
-      background: #1f9159;
-      border-color: #49bb86;
-      color: #eafff4;
+      background: #132818;
+      border-color: #2a6b48;
+      color: #b8f0d0;
     }
-    button.send:hover:not(:disabled), button.listen:hover:not(:disabled), button.tts-toggle:hover:not(:disabled) { filter: brightness(1.08); }
-    button.send:disabled, button.listen:disabled, button.tts-toggle:disabled { opacity: 0.45; cursor: not-allowed; }
-    .status { font-size: 0.75rem; color: var(--muted); margin-top: 0.45rem; min-height: 1.1em; }
-    .status.error { color: var(--error); }
-    .empty-hint { color: var(--muted); font-size: 0.88rem; text-align: center; padding: 2rem 1rem; }
-    .space-top {
-      flex-shrink: 0;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-      padding: 0.75rem 0.9rem;
-      font-size: 0.78rem;
+    button.send:hover:not(:disabled), button.tts-toggle:hover:not(:disabled) { filter: brightness(1.08); }
+    button.send:disabled, button.tts-toggle:disabled { opacity: 0.45; cursor: not-allowed; }
+    .status {
+      font-size: 0.72rem;
       color: var(--muted);
+      margin-top: 0.5rem;
+      min-height: 1em;
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
     }
-    .space-top b { color: var(--text); font-weight: 600; }
-    #spaceCanvasWrap { position: relative; flex: 1; min-height: 0; }
-    #spaceCanvasWrap canvas { display: block; width: 100% !important; height: 100% !important; }
-    #spaceLegend {
-      position: absolute;
-      left: 10px;
-      bottom: 10px;
-      background: rgba(8, 10, 14, 0.8);
-      border: 1px solid #2b3140;
-      border-radius: 8px;
-      padding: 8px 10px;
-      font: 12px "IBM Plex Mono", ui-monospace, monospace;
-      color: #b8bfcc;
-      pointer-events: none;
-      white-space: pre-line;
-    }
-    @media (max-width: 980px) {
-      .app { grid-template-columns: 1fr; grid-template-rows: 58% 42%; }
-      .chat-pane { border-right: 0; border-bottom: 1px solid var(--border); }
+    .status.error { color: var(--error); }
+    .empty-hint { display: none; }
+    @keyframes chat-column-glow-pulse {
+      0%, 100% {
+        opacity: 0.35;
+        filter: brightness(0.92) saturate(0.95);
+      }
+      50% {
+        opacity: 0.95;
+        filter: brightness(1.12) saturate(1.08);
+      }
     }
   </style>
 </head>
 <body>
+  <div class="layout">
+    <aside class="side-col side-col--left" aria-label="Model, memory field, and spatial readout">
+      <div class="model-panel left-stack-panel" id="modelPanel">
+        <span class="hud-bracket hud-bracket--tl" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--tr" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--bl" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--br" aria-hidden="true"></span>
+        <div class="hud-scanline" aria-hidden="true"></div>
+        <div class="model-panel__inner">
+          <div class="hud-title">Ollama · Generation</div>
+          <div class="model-field">
+            <label for="ollamaModel">Model</label>
+            <select id="ollamaModel" class="model-select" aria-label="Ollama model"></select>
+          </div>
+          <div class="model-field">
+            <label for="ollamaTemperature">Temperature</label>
+            <input type="number" id="ollamaTemperature" class="model-input" min="0" max="2" step="0.05" value="0.4" />
+          </div>
+          <div class="model-row-2">
+            <div class="model-field">
+              <label for="ollamaTopP">Top P</label>
+              <input type="number" id="ollamaTopP" class="model-input" min="0" max="1" step="0.05" placeholder="default" />
+            </div>
+            <div class="model-field">
+              <label for="ollamaTopK">Top K</label>
+              <input type="number" id="ollamaTopK" class="model-input" min="1" step="1" placeholder="default" />
+            </div>
+          </div>
+          <div class="model-row-2">
+            <div class="model-field">
+              <label for="ollamaNumPredict">Max tokens</label>
+              <input type="number" id="ollamaNumPredict" class="model-input" min="1" step="64" placeholder="default" />
+            </div>
+            <div class="model-field">
+              <label for="ollamaRepeatPenalty">Repeat penalty</label>
+              <input type="number" id="ollamaRepeatPenalty" class="model-input" min="0" max="2" step="0.05" placeholder="default" />
+            </div>
+          </div>
+          <div class="model-actions">
+            <button type="button" class="persona-btn" id="ollamaRefreshModels">Refresh models</button>
+          </div>
+          <p class="model-panel__status" id="modelPanelStatus"></p>
+        </div>
+      </div>
+      <div class="memory-field-panel left-stack-panel" id="memoryFieldPanel" aria-label="Memory field 3D view">
+        <span class="hud-bracket hud-bracket--tl" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--tr" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--bl" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--br" aria-hidden="true"></span>
+        <div class="hud-scanline" aria-hidden="true"></div>
+        <div class="memory-field-panel__inner">
+          <div class="hud-title">Memory field</div>
+          <p class="memory-field-hint">[-1, 1]³ · drag orbit · scroll zoom</p>
+          <div id="memoryFieldCanvasHost" class="memory-field-canvas-wrap" role="img" aria-label="Three-dimensional memory graph"></div>
+          <p class="model-panel__status memory-field-viz-status" id="memoryFieldVizStatus"></p>
+        </div>
+      </div>
+      <div
+        class="spatial-field-panel left-stack-panel spatial-field-panel--idle"
+        id="spatialFieldPanel"
+        aria-label="Last spatial encounter"
+      >
+        <span class="hud-bracket hud-bracket--tl" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--tr" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--bl" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--br" aria-hidden="true"></span>
+        <div class="hud-scanline" aria-hidden="true"></div>
+        <div class="spatial-field-readout" aria-live="polite">
+          <div class="hud-title">Spatial field · Last encounter</div>
+          <p class="spatial-field-idle-msg" id="sfIdle">Awaiting first response…</p>
+          <div class="spatial-field-grid" id="sfGrid" hidden>
+            <span class="spatial-field-k">Position</span>
+            <span class="spatial-field-v" id="sfCoords">—</span>
+            <span class="spatial-field-k">Commitment</span>
+            <span class="spatial-field-v" id="sfCommitment">—</span>
+            <span class="spatial-field-k">Confidence</span>
+            <span class="spatial-field-v" id="sfConfidence">—</span>
+            <span class="spatial-field-k">Caution</span>
+            <span class="spatial-field-v" id="sfCaution">—</span>
+            <span class="spatial-field-k">Density</span>
+            <span class="spatial-field-v" id="sfDensity">—</span>
+            <span class="spatial-field-k">Coherence</span>
+            <span class="spatial-field-v" id="sfCoherence">—</span>
+            <span class="spatial-field-k">Resonance</span>
+            <span class="spatial-field-v" id="sfResonance">—</span>
+            <span class="spatial-field-k">Rule</span>
+            <span class="spatial-field-v" id="sfRuleId">—</span>
+          </div>
+          <p class="spatial-field-rationale" id="sfRationale" hidden></p>
+        </div>
+      </div>
+    </aside>
+    <div class="layout__main">
+      <div class="chat-column-glow" aria-hidden="true"></div>
   <div class="app">
-    <section class="chat-pane">
-      <header>
-        <h1>Spatial memory chat</h1>
-        <p>Llama 3.2 · orient → inspect → commit · streaming</p>
-      </header>
-      <div id="log" aria-live="polite">
-        <div class="empty-hint" id="hint">Type below and press Enter or Send.</div>
+    <div class="chat-area">
+      <div class="reactor-scene" aria-hidden="true">
+        <canvas id="reactorCanvas"></canvas>
       </div>
-      <div class="composer">
-        <form class="row" id="form">
-          <textarea id="input" rows="2" placeholder="Message…" autocomplete="off"></textarea>
-          <button type="button" class="listen" id="listen">Start listening</button>
-          <button type="button" class="tts-toggle active" id="ttsToggle">Voice on</button>
-          <button type="submit" class="send" id="send">Send</button>
-        </form>
-        <div class="status" id="status"></div>
+      <div id="log" aria-live="polite"></div>
+    </div>
+    <div class="composer">
+      <form class="row" id="form">
+        <textarea id="input" rows="1" placeholder="Message…" autocomplete="off"></textarea>
+        <button type="button" class="icon-btn listen" id="listen" title="Microphone" aria-label="Start listening">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
+          </svg>
+        </button>
+        <button type="button" class="tts-toggle active" id="ttsToggle">Voice on</button>
+        <button type="submit" class="send" id="send">Send</button>
+      </form>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+    </div>
+    <aside class="side-col side-col--right" aria-label="System telemetry">
+      <div class="hud-panel right-stack-panel" id="hudPanel">
+        <span class="hud-bracket hud-bracket--tl" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--tr" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--bl" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--br" aria-hidden="true"></span>
+        <div class="hud-scanline" aria-hidden="true"></div>
+        <div class="hud-title">J.A.R.V.I.S. · Host telemetry</div>
+        <div class="hud-block">
+          <div class="hud-status">
+            <span class="hud-status-led" id="hudLed" title="System status"></span>
+            <span class="hud-value" id="hudStatus">NOMINAL</span>
+          </div>
+          <div class="hud-row hud-row--tight">
+            <span class="hud-label">Node</span>
+            <span class="hud-value" id="hudHostname">—</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">Platform</span>
+            <span class="hud-value hud-value--dim" id="hudPlatform">—</span>
+          </div>
+          <div class="hud-metric">
+            <div class="hud-metric-top">
+              <span class="hud-metric-name">CPU load</span>
+              <span class="hud-metric-pct"><span id="hudCpuPct">—</span>%</span>
+            </div>
+            <div class="hud-bar"><div class="hud-bar-fill" id="hudCpuBar"></div></div>
+            <div class="hud-sub" id="hudCpuSub">cores —</div>
+          </div>
+          <div class="hud-metric">
+            <div class="hud-metric-top">
+              <span class="hud-metric-name">Memory</span>
+              <span class="hud-metric-pct"><span id="hudRamPct">—</span>%</span>
+            </div>
+            <div class="hud-bar"><div class="hud-bar-fill" id="hudRamBar"></div></div>
+            <div class="hud-sub" id="hudRamSub">— / — GB</div>
+          </div>
+          <div class="hud-metric">
+            <div class="hud-metric-top">
+              <span class="hud-metric-name">Storage <span id="hudDiskMount"></span></span>
+              <span class="hud-metric-pct"><span id="hudDiskPct">—</span>%</span>
+            </div>
+            <div class="hud-bar"><div class="hud-bar-fill" id="hudDiskBar"></div></div>
+            <div class="hud-sub" id="hudDiskSub">— / — GB</div>
+          </div>
+          <div class="hud-offline" id="hudError" hidden>Telemetry link interrupted</div>
+        </div>
       </div>
-    </section>
-    <section class="space-pane">
-      <div class="space-top"><b>Latent Space</b> · drag to orbit · wheel to zoom · right-drag to pan</div>
-      <div id="spaceCanvasWrap">
-        <div id="spaceLegend">x: self(-) ↔ other(+)
-y: known(-) ↔ unknown(+)
-z: active(-) ↔ contemplative(+)</div>
+      <div class="persona-panel right-stack-panel">
+        <span class="hud-bracket hud-bracket--tl" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--tr" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--bl" aria-hidden="true"></span>
+        <span class="hud-bracket hud-bracket--br" aria-hidden="true"></span>
+        <div class="hud-scanline" aria-hidden="true"></div>
+        <div class="persona-panel__inner">
+          <div class="persona-panel__title">Persona directive</div>
+          <textarea
+            id="personaEditor"
+            class="persona-panel__editor"
+            rows="14"
+            spellcheck="false"
+            autocomplete="off"
+            aria-label="Persona file contents"
+          ></textarea>
+          <div class="persona-panel__row">
+            <button type="button" class="persona-btn persona-btn--primary" id="personaSave">Save to disk</button>
+          </div>
+          <div class="persona-panel__subtitle">AI enhance</div>
+          <label class="persona-check">
+            <input type="checkbox" id="personaIncludeCurrent" checked />
+            Use current file as context
+          </label>
+          <textarea
+            id="personaHint"
+            class="persona-panel__hint"
+            rows="3"
+            placeholder="Short direction — e.g. &quot;More stoic, fewer emojis&quot; or &quot;Add rules about staying in 1920s voice&quot;"
+            spellcheck="true"
+          ></textarea>
+          <button type="button" class="persona-btn persona-btn--accent" id="personaEnhance">Enhance</button>
+          <div class="persona-enhanced-wrap" id="personaEnhancedWrap" hidden>
+            <div class="persona-panel__subtitle">Proposed</div>
+            <textarea
+              id="personaEnhancedOut"
+              class="persona-panel__editor persona-panel__editor--readonly"
+              rows="10"
+              readonly
+              spellcheck="false"
+              aria-label="AI proposed persona text"
+            ></textarea>
+            <div class="persona-panel__row persona-panel__row--split">
+              <button type="button" class="persona-btn" id="personaReplaceWithEnhanced">Replace editor</button>
+              <button type="button" class="persona-btn" id="personaAppendEnhanced">Append</button>
+            </div>
+          </div>
+          <p class="persona-panel__status" id="personaPanelStatus"></p>
+          <p class="persona-panel__path" id="personaPathLabel"></p>
+        </div>
       </div>
-    </section>
+    </aside>
   </div>
   <script>
     const log = document.getElementById("log");
-    const hint = document.getElementById("hint");
     const input = document.getElementById("input");
     const form = document.getElementById("form");
     const sendBtn = document.getElementById("send");
@@ -217,12 +990,152 @@ z: active(-) ↔ contemplative(+)</div>
     const ttsToggleBtn = document.getElementById("ttsToggle");
     const status = document.getElementById("status");
 
+    const INF_STORAGE_KEY = "sm_chat_inference";
+
+    function loadInfStorage() {
+      try {
+        const raw = localStorage.getItem(INF_STORAGE_KEY);
+        if (!raw) return null;
+        const o = JSON.parse(raw);
+        return o && typeof o === "object" ? o : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function readInfForm() {
+      const sel = document.getElementById("ollamaModel");
+      const mv = (sel && sel.value) ? sel.value.trim() : "";
+      function optFloat(id) {
+        const el = document.getElementById(id);
+        if (!el) return null;
+        const t = el.value.trim();
+        if (t === "") return null;
+        const n = parseFloat(t);
+        return Number.isFinite(n) ? n : null;
+      }
+      function optInt(id) {
+        const el = document.getElementById(id);
+        if (!el) return null;
+        const t = el.value.trim();
+        if (t === "") return null;
+        const n = parseInt(t, 10);
+        return Number.isFinite(n) ? n : null;
+      }
+      const tempEl = document.getElementById("ollamaTemperature");
+      let temperature = 0.4;
+      if (tempEl && tempEl.value.trim() !== "") {
+        const t = parseFloat(tempEl.value);
+        if (Number.isFinite(t)) temperature = t;
+      }
+      return {
+        model: mv === "" ? null : mv,
+        temperature,
+        top_p: optFloat("ollamaTopP"),
+        top_k: optInt("ollamaTopK"),
+        num_predict: optInt("ollamaNumPredict"),
+        repeat_penalty: optFloat("ollamaRepeatPenalty"),
+      };
+    }
+
+    function saveInfStorage() {
+      try {
+        localStorage.setItem(INF_STORAGE_KEY, JSON.stringify(readInfForm()));
+      } catch {
+        /* ignore quota */
+      }
+    }
+
+    function applyInfToForm(s) {
+      if (!s || typeof s !== "object") return;
+      const t = document.getElementById("ollamaTemperature");
+      if (t && s.temperature != null && Number.isFinite(Number(s.temperature))) {
+        t.value = String(s.temperature);
+      }
+      function setOpt(id, v) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = v != null && v !== "" ? String(v) : "";
+      }
+      setOpt("ollamaTopP", s.top_p);
+      setOpt("ollamaTopK", s.top_k);
+      setOpt("ollamaNumPredict", s.num_predict);
+      setOpt("ollamaRepeatPenalty", s.repeat_penalty);
+    }
+
+    async function loadOllamaModels(savedPrefs) {
+      const statusEl = document.getElementById("modelPanelStatus");
+      const sel = document.getElementById("ollamaModel");
+      const saved = savedPrefs ?? loadInfStorage();
+      try {
+        const r = await fetch("/api/ollama/models");
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          const msg = typeof d.detail === "string" ? d.detail : r.statusText || "Request failed";
+          throw new Error(msg);
+        }
+        const models = Array.isArray(d.models) ? d.models : [];
+        const def = d.default_model || "env default";
+        sel.innerHTML = "";
+        const opt0 = document.createElement("option");
+        opt0.value = "";
+        opt0.textContent = "Default (" + def + ")";
+        sel.appendChild(opt0);
+        for (let i = 0; i < models.length; i += 1) {
+          const name = models[i];
+          const o = document.createElement("option");
+          o.value = name;
+          o.textContent = name;
+          sel.appendChild(o);
+        }
+        const want = saved && saved.model ? String(saved.model).trim() : "";
+        if (want) {
+          const has = Array.prototype.some.call(sel.options, (op) => op.value === want);
+          if (!has) {
+            const o = document.createElement("option");
+            o.value = want;
+            o.textContent = want + " (saved)";
+            sel.appendChild(o);
+          }
+          sel.value = want;
+        } else {
+          sel.value = "";
+        }
+        statusEl.textContent = d.base_url ? "Endpoint: " + d.base_url : "";
+        statusEl.classList.remove("error");
+      } catch (e) {
+        statusEl.textContent = String(e.message || e);
+        statusEl.classList.add("error");
+      }
+    }
+
+    (function initModelPanel() {
+      const initial = loadInfStorage();
+      applyInfToForm(initial);
+      document.getElementById("ollamaRefreshModels").addEventListener("click", () => {
+        loadOllamaModels(loadInfStorage());
+      });
+      [
+        "ollamaModel",
+        "ollamaTemperature",
+        "ollamaTopP",
+        "ollamaTopK",
+        "ollamaNumPredict",
+        "ollamaRepeatPenalty",
+      ].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener("change", saveInfStorage);
+        el.addEventListener("input", saveInfStorage);
+      });
+      loadOllamaModels(initial);
+    })();
+
     function scrollBottom() {
       log.scrollTop = log.scrollHeight;
     }
 
     function addUserBubble(text) {
-      if (hint.parentNode) hint.remove();
       const wrap = document.createElement("div");
       wrap.className = "bubble user";
       const lab = document.createElement("div");
@@ -275,8 +1188,74 @@ z: active(-) ↔ contemplative(+)</div>
         (rat ? " · " + rat + (d.rationale && d.rationale.length > 220 ? "…" : "") : "");
     }
 
+    let spatialEncounterState = null;
+
+    function mergeSpatialEncounter(partial) {
+      if (!partial || typeof partial !== "object") return;
+      spatialEncounterState = { ...(spatialEncounterState || {}), ...partial };
+      window.__spatialEncounterState = spatialEncounterState;
+      renderSpatialFieldHud();
+      if (typeof window.__memoryFieldUpdateBeacon === "function") {
+        window.__memoryFieldUpdateBeacon();
+      }
+    }
+
+    function sfFmtNum(n, digits) {
+      if (n == null || n === "") return "—";
+      const x = Number(n);
+      return Number.isFinite(x) ? x.toFixed(digits) : "—";
+    }
+
+    function renderSpatialFieldHud() {
+      const panel = document.getElementById("spatialFieldPanel");
+      const idleEl = document.getElementById("sfIdle");
+      const grid = document.getElementById("sfGrid");
+      const ratEl = document.getElementById("sfRationale");
+      const d = spatialEncounterState;
+      const hasPos =
+        d &&
+        Number.isFinite(Number(d.x)) &&
+        Number.isFinite(Number(d.y)) &&
+        Number.isFinite(Number(d.z));
+      if (!hasPos) {
+        panel.classList.add("spatial-field-panel--idle");
+        idleEl.hidden = false;
+        grid.hidden = true;
+        ratEl.hidden = true;
+        ratEl.textContent = "";
+        return;
+      }
+      panel.classList.remove("spatial-field-panel--idle");
+      idleEl.hidden = true;
+      grid.hidden = false;
+      document.getElementById("sfCoords").textContent =
+        "(" + sfFmtNum(d.x, 3) + ", " + sfFmtNum(d.y, 3) + ", " + sfFmtNum(d.z, 3) + ")";
+      document.getElementById("sfCommitment").textContent = d.commitment != null ? String(d.commitment) : "—";
+      document.getElementById("sfConfidence").textContent = sfFmtNum(d.confidence, 2);
+      const caut = !!d.caution;
+      const cEl = document.getElementById("sfCaution");
+      cEl.textContent = caut ? "Yes — contested region" : "No";
+      cEl.className = "spatial-field-v" + (caut ? " spatial-field-v--caution" : " spatial-field-v--ok");
+      document.getElementById("sfDensity").textContent = sfFmtNum(d.density, 3);
+      document.getElementById("sfCoherence").textContent = sfFmtNum(d.coherence, 3);
+      document.getElementById("sfResonance").textContent = sfFmtNum(d.resonance_max, 3);
+      document.getElementById("sfRuleId").textContent = (d.rule_id && String(d.rule_id)) || "—";
+      const rationale = (d.rationale && String(d.rationale).trim()) || "";
+      if (rationale) {
+        ratEl.hidden = false;
+        ratEl.textContent = rationale;
+      } else {
+        ratEl.hidden = true;
+        ratEl.textContent = "";
+      }
+    }
+
     let busy = false;
-    let refreshSpace = async () => {};
+    const refreshSpace = async () => {
+      if (typeof window.refreshMemoryFieldViz === "function") {
+        await window.refreshMemoryFieldViz();
+      }
+    };
     let recognition = null;
     let listening = false;
     let finalSpeechText = "";
@@ -287,7 +1266,8 @@ z: active(-) ↔ contemplative(+)</div>
     function setListeningUi(isListening) {
       listening = isListening;
       listenBtn.classList.toggle("active", isListening);
-      listenBtn.textContent = isListening ? "Stop listening" : "Start listening";
+      listenBtn.setAttribute("aria-label", isListening ? "Stop listening" : "Start listening");
+      listenBtn.title = isListening ? "Stop listening" : "Microphone";
     }
 
     function updateInputFromSpeech() {
@@ -311,7 +1291,7 @@ z: active(-) ↔ contemplative(+)</div>
 
       recognition.onstart = () => {
         setListeningUi(true);
-        status.textContent = "Listening… press Stop listening when ready.";
+        status.textContent = "Listening… tap mic again when done.";
         status.classList.remove("error");
       };
 
@@ -392,7 +1372,7 @@ z: active(-) ↔ contemplative(+)</div>
         };
         await audio.play();
       } catch {
-        status.textContent = "Voice playback blocked or failed. Click Voice on and send again.";
+        status.textContent = "Voice playback blocked or failed. Try Voice on and send again.";
         status.classList.add("error");
       }
     }
@@ -416,7 +1396,10 @@ z: active(-) ↔ contemplative(+)</div>
         const r = await fetch("/api/chat/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text }),
+          body: JSON.stringify({
+            message: text,
+            inference: readInfForm(),
+          }),
         });
         if (!r.ok) {
           const data = await r.json().catch(() => ({}));
@@ -454,6 +1437,7 @@ z: active(-) ↔ contemplative(+)</div>
                 commitment: ev.data.commitment,
                 rule_id: ev.data.rule_id,
               });
+              mergeSpatialEncounter(ev.data);
             } else if (ev.event === "token") {
               if (!assistantBody) {
                 const el = createAssistantBubble();
@@ -474,6 +1458,7 @@ z: active(-) ↔ contemplative(+)</div>
                 assistantBody.textContent = ev.data.reply;
               }
               fillMeta(metaEl, ev.data);
+              mergeSpatialEncounter(ev.data);
               refreshSpace();
             }
           }
@@ -523,239 +1508,779 @@ z: active(-) ↔ contemplative(+)</div>
       }
     });
 
-    function init3D() {
-      const wrap = document.getElementById("spaceCanvasWrap");
-      const canvas = document.createElement("canvas");
-      wrap.appendChild(canvas);
-      const ctx = canvas.getContext("2d");
-      let nodes = [];
-      let links = [];
-      let sceneTrails = {};
-      let yaw = 0.9;
-      let pitch = -0.35;
-      let zoom = 1.18;
-      let dragging = false;
-      let lx = 0;
-      let ly = 0;
+    initSpeechRecognition();
+    setTtsUi();
 
-        const commitmentColors = { recognition: "#6fe7a5", deepening: "#6f96ff", bridging: "#f7c66f", founding: "#df84ff" };
-      const linkColors = { reinforcement: "#7ca1ff", bridge: "#f5c46a", tension: "#ff6b6b", sequence: "#8fd3c5" };
-      const sceneStateColors = { active: "#76f0a0", resolved: "#9aa6b7", closed: "#686f7f" };
+    (function initReactor() {
+      const scene = document.querySelector(".reactor-scene");
+      const canvas = document.getElementById("reactorCanvas");
+      const ctx = canvas.getContext("2d");
+      let w = 0;
+      let h = 0;
+      let dpr = 1;
+      let cx = 0;
+      let cy = 0;
+      let baseR = 24;
+      let t = 0;
+
+      const sparks = [];
+      const bolts = [];
+      const RING_COUNT = 2;
+      /** Overall scale of the spinning reactor (1 = original). */
+      const REACTOR_VISUAL_SCALE = 0.5;
+      const BASE_R_FRAC = 0.132 * REACTOR_VISUAL_SCALE;
+      const lights = [];
+      for (let r = 0; r < RING_COUNT; r += 1) {
+        const count = 6 + r * 2;
+        for (let i = 0; i < count; i += 1) {
+          lights.push({
+            ring: r,
+            ang: (i / count) * Math.PI * 2 + Math.random() * 0.4,
+            spd: 1.4 + Math.random() * 2.2,
+            phase: Math.random() * Math.PI * 2,
+            warm: Math.random() < 0.14,
+          });
+        }
+      }
 
       function resize() {
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        canvas.width = Math.max(10, Math.floor(wrap.clientWidth * dpr));
-        canvas.height = Math.max(10, Math.floor(wrap.clientHeight * dpr));
-        canvas.style.width = wrap.clientWidth + "px";
-        canvas.style.height = wrap.clientHeight + "px";
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        w = scene.clientWidth;
+        h = scene.clientHeight;
+        if (w < 1 || h < 1) return;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        cx = w * 0.5;
+        cy = h * 0.5;
+        baseR = Math.min(w, h) * BASE_R_FRAC;
       }
-      window.addEventListener("resize", resize);
-      resize();
 
-      function rot(pt) {
-        const cy = Math.cos(yaw), sy = Math.sin(yaw);
-        const cp = Math.cos(pitch), sp = Math.sin(pitch);
-        let x = pt.x, y = pt.y, z = pt.z;
-        const x1 = x * cy - z * sy;
-        const z1 = x * sy + z * cy;
-        const y2 = y * cp - z1 * sp;
-        const z2 = y * sp + z1 * cp;
-        return { x: x1, y: y2, z: z2 };
+      function hexClipPath() {
+        const rot = t * 0.32;
+        const hr = baseR * 0.52;
+        ctx.beginPath();
+        for (let k = 0; k < 6; k += 1) {
+          const a = (k / 6) * Math.PI * 2 - Math.PI / 2 + rot;
+          const x = cx + Math.cos(a) * hr;
+          const y = cy + Math.sin(a) * hr;
+          if (k === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
       }
-      function beanify(pt) {
-        const bend = 0.22 * pt.y * pt.y - 0.18 * pt.z * pt.z - 0.12 * Math.max(0, pt.y);
-        return { x: pt.x + bend, y: pt.y, z: pt.z };
-      }
-      function project(pt) {
-        const r = rot(beanify(pt));
-        const w = wrap.clientWidth, h = wrap.clientHeight;
-        const f = (220 * zoom) / (2.2 + r.z + 2.2);
-        return { sx: w * 0.5 + r.x * f, sy: h * 0.52 - r.y * f, depth: r.z };
-      }
-      function drawBeanShell() {
-        for (let yi = -8; yi <= 8; yi += 1) {
-          const y = (yi / 8) * 0.82;
-          const rSlice = Math.sqrt(Math.max(0, 1 - (y * y) / (0.98 * 0.98)));
-          if (rSlice <= 0.02) continue;
-          ctx.beginPath();
-          let started = false;
-          for (let a = 0; a <= 64; a += 1) {
-            const t = (a / 64) * Math.PI * 2;
-            const p = {
-              x: 1.22 * rSlice * Math.cos(t),
-              y,
-              z: 0.88 * rSlice * Math.sin(t),
-            };
-            const q = project(p);
-            if (!started) {
-              ctx.moveTo(q.sx, q.sy);
-              started = true;
-            } else {
-              ctx.lineTo(q.sx, q.sy);
-            }
+
+      function regenBolts() {
+        bolts.length = 0;
+        const hrHex = baseR * 0.52;
+        const maxR = hrHex * 0.86;
+        const minR = baseR * 0.1;
+        const n = 3 + Math.floor(Math.random() * 4);
+        for (let b = 0; b < n; b += 1) {
+          const a0 = Math.random() * Math.PI * 2;
+          const segs = 5 + Math.floor(Math.random() * 5);
+          const pts = [];
+          for (let s = 0; s <= segs; s += 1) {
+            const f = s / segs;
+            const a = a0 + (Math.random() - 0.5) * 0.65;
+            const rad = minR + f * (maxR - minR);
+            pts.push({
+              x: cx + Math.cos(a) * rad + (Math.random() - 0.5) * 5,
+              y: cy + Math.sin(a) * rad + (Math.random() - 0.5) * 5,
+            });
           }
-          ctx.closePath();
-          ctx.globalAlpha = yi % 2 === 0 ? 0.08 : 0.04;
-          ctx.fillStyle = "#8fa1d6";
-          ctx.fill();
-          ctx.globalAlpha = 0.15;
-          ctx.strokeStyle = "#7083b8";
-          ctx.lineWidth = 0.8;
-          ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
-      }
-      function drawAxes() {
-        const axes = [
-          [{ x: -1.1, y: 0, z: 0 }, { x: 1.1, y: 0, z: 0 }, "#ff7b7b"],
-          [{ x: 0, y: -1.1, z: 0 }, { x: 0, y: 1.1, z: 0 }, "#7bff9a"],
-          [{ x: 0, y: 0, z: -1.1 }, { x: 0, y: 0, z: 1.1 }, "#7ba7ff"],
-        ];
-        for (const [a, b, c] of axes) {
-          const pa = project(a), pb = project(b);
-          ctx.strokeStyle = c;
-          ctx.globalAlpha = 0.9;
-          ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          ctx.moveTo(pa.sx, pa.sy);
-          ctx.lineTo(pb.sx, pb.sy);
-          ctx.stroke();
+          bolts.push({ pts, life: 0.85 + Math.random() * 0.35, flicker: Math.random() * 10 });
         }
       }
 
-      function render() {
-        const w = wrap.clientWidth, h = wrap.clientHeight;
-        ctx.clearRect(0, 0, w, h);
-        ctx.fillStyle = "#0a0b0f";
-        ctx.fillRect(0, 0, w, h);
-        drawBeanShell();
-        drawAxes();
+      function spawnSpark() {
+        if (w < 8) return;
+        const theta = Math.random() * Math.PI * 2;
+        const speed = 0.65 + Math.random() * 2.2;
+        const br = baseR || Math.min(w, h) * BASE_R_FRAC;
+        sparks.push({
+          x: cx + Math.cos(theta) * br * 0.12,
+          y: cy + Math.sin(theta) * br * 0.12,
+          vx: Math.cos(theta) * speed + (Math.random() - 0.5) * 0.7,
+          vy: Math.sin(theta) * speed + (Math.random() - 0.5) * 0.7,
+          life: 1,
+          warm: Math.random() < 0.22,
+        });
+      }
 
-        const byId = new Map(nodes.map((n) => [n.id, n]));
-        for (const l of links) {
-          const a = byId.get(l.source_id);
-          const b = byId.get(l.target_id);
-          if (!a || !b) continue;
-          const pa = project({ x: a.x, y: a.y, z: a.z });
-          const pb = project({ x: b.x, y: b.y, z: b.z });
-          ctx.strokeStyle = linkColors[l.link_type] || "#8b91a0";
-          ctx.globalAlpha = Math.max(0.15, Math.min(0.95, l.strength || 0.2));
-          ctx.lineWidth = 1.1;
+      function drawRings() {
+        for (let i = 0; i < RING_COUNT; i += 1) {
+          const rad = baseR * (0.88 + i * 0.34);
+          const dir = i % 2 === 0 ? 1 : -1;
+          const spin = t * (0.38 + i * 0.09) * dir + i * 0.85;
+
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(spin);
+
+          ctx.strokeStyle = "rgba(103, 232, 249, " + (0.26 + i * 0.07) + ")";
+          ctx.lineWidth = i === 0 ? 2 : 1.5;
           ctx.beginPath();
-          ctx.moveTo(pa.sx, pa.sy);
-          ctx.lineTo(pb.sx, pb.sy);
+          ctx.arc(0, 0, rad, 0, Math.PI * 2);
           ctx.stroke();
-        }
 
-        for (const [sceneId, points] of Object.entries(sceneTrails || {})) {
-          if (!Array.isArray(points) || points.length < 2) continue;
-          const owner = nodes.find((n) => n.scene_id === sceneId);
-          const sState = owner?.scene_state || "closed";
-          ctx.strokeStyle = sceneStateColors[sState] || "#7f8896";
-          ctx.globalAlpha = sState === "active" ? 0.8 : 0.35;
-          ctx.lineWidth = sState === "active" ? 2.1 : 1.2;
+          ctx.strokeStyle = "rgba(45, 212, 191, " + (0.14 + i * 0.05) + ")";
+          ctx.setLineDash([5, 20 - i * 2]);
+          ctx.lineWidth = 0.85;
           ctx.beginPath();
-          for (let i = 0; i < points.length; i += 1) {
-            const p = project(points[i]);
-            if (i === 0) ctx.moveTo(p.sx, p.sy);
-            else ctx.lineTo(p.sx, p.sy);
-          }
+          ctx.arc(0, 0, rad * 0.92, 0, Math.PI * 2);
           ctx.stroke();
-        }
+          ctx.setLineDash([]);
 
-        const plotted = nodes.map((n) => {
-          const p = project({ x: n.x, y: n.y, z: n.z });
-          return { n, p };
-        }).sort((a, b) => a.p.depth - b.p.depth);
-
-        for (const { n, p } of plotted) {
-          const conf = Math.max(0.08, Math.min(1, n.confidence || 0.2));
-          const rc = Math.max(1, Number(n.reinforcement_count || 1));
-          const reinforceBoost = Math.min(10, Math.log2(rc + 1) * 3.2);
-          const r = 3 + conf * 7 + reinforceBoost;
-          ctx.globalAlpha = 1;
-          ctx.fillStyle = commitmentColors[n.commitment_type] || "#cccccc";
+          const arcStart = t * (0.6 + i * 0.1) + i;
+          ctx.strokeStyle = "rgba(253, 224, 71, " + (0.15 + Math.sin(t * 2 + i) * 0.08) + ")";
+          ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
-          ctx.fill();
-          const sState = n.scene_state || "closed";
-          ctx.globalAlpha = 0.95;
-          ctx.strokeStyle = sceneStateColors[sState] || "#7f8896";
-          ctx.lineWidth = sState === "active" ? 2.6 : sState === "resolved" ? 1.8 : 1.2;
-          ctx.beginPath();
-          ctx.arc(p.sx, p.sy, r + 4.4, 0, Math.PI * 2);
+          ctx.arc(0, 0, rad * 1.01, arcStart, arcStart + 0.85);
           ctx.stroke();
-          ctx.globalAlpha = 1;
-          // Visual cue for nodes that were deepened/reinforced instead of newly founded.
-          if (rc > 1) {
-            const ringAlpha = Math.min(0.85, 0.22 + rc * 0.06);
-            ctx.globalAlpha = ringAlpha;
-            ctx.strokeStyle = n.commitment_type === "deepening" ? "#8fb2ff" : "#a4ffd0";
-            ctx.lineWidth = 1.4 + Math.min(3, rc * 0.22);
+
+          for (let li = 0; li < lights.length; li += 1) {
+            const L = lights[li];
+            if (L.ring !== i) continue;
+            const blink = Math.sin(t * L.spd * 3.2 + L.phase);
+            const strobe = Math.sin(t * 19 + L.phase * 3);
+            const on = blink > 0.2 || strobe > 0.88;
+            const lx = Math.cos(L.ang) * rad;
+            const ly = Math.sin(L.ang) * rad;
+            ctx.fillStyle = L.warm
+              ? on
+                ? "rgba(255, 248, 180, 0.95)"
+                : "rgba(250, 204, 21, 0.22)"
+              : on
+                ? "rgba(220, 255, 255, 0.92)"
+                : "rgba(94, 200, 230, 0.18)";
             ctx.beginPath();
-            ctx.arc(p.sx, p.sy, r + 2.2, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.globalAlpha = 1;
+            ctx.arc(lx, ly, on ? 2.6 : 1.35, 0, Math.PI * 2);
+            ctx.fill();
           }
-          if (n.contested) {
-            ctx.strokeStyle = "#ff6b6b";
-            ctx.lineWidth = 2;
-            ctx.stroke();
+
+          ctx.restore();
+        }
+      }
+
+      function drawCoreGlow() {
+        const pulse = 0.86 + Math.sin(t * 2.9) * 0.11 + Math.sin(t * 5.8) * 0.04;
+        const r0 = baseR * 0.34 * pulse;
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r0 * 2.9);
+        g.addColorStop(0, "rgba(255, 255, 255, 0.9)");
+        g.addColorStop(0.1, "rgba(224, 255, 252, 0.75)");
+        g.addColorStop(0.32, "rgba(34, 211, 238, 0.5)");
+        g.addColorStop(0.58, "rgba(13, 148, 136, 0.18)");
+        g.addColorStop(1, "rgba(6, 50, 60, 0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r0 * 2.75, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawCoreInner() {
+        const pulse = 0.86 + Math.sin(t * 2.9) * 0.11;
+        const r0 = baseR * 0.34 * pulse;
+        ctx.fillStyle = "rgba(255, 255, 255, " + (0.2 + Math.sin(t * 4.2) * 0.1) + ")";
+        ctx.beginPath();
+        ctx.arc(cx, cy, r0 * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(t * 0.32);
+        ctx.strokeStyle = "rgba(165, 243, 252, 0.5)";
+        ctx.lineWidth = 1.15;
+        const hr = baseR * 0.52;
+        ctx.beginPath();
+        for (let k = 0; k < 6; k += 1) {
+          const a = (k / 6) * Math.PI * 2 - Math.PI / 2;
+          const x = Math.cos(a) * hr;
+          const y = Math.sin(a) * hr;
+          if (k === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+
+        ctx.rotate(Math.PI / 6);
+        ctx.strokeStyle = "rgba(45, 212, 191, 0.28)";
+        ctx.lineWidth = 0.75;
+        ctx.beginPath();
+        for (let k = 0; k < 6; k += 1) {
+          const a = (k / 6) * Math.PI * 2 - Math.PI / 2;
+          const x = Math.cos(a) * hr * 0.72;
+          const y = Math.sin(a) * hr * 0.72;
+          if (k === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawBolts() {
+        for (let b = 0; b < bolts.length; b += 1) {
+          const bolt = bolts[b];
+          if (bolt.life <= 0) continue;
+          const flick = 0.5 + Math.sin(t * 38 + bolt.flicker) * 0.35;
+          ctx.save();
+          ctx.globalAlpha = bolt.life * flick;
+          ctx.strokeStyle = "rgba(236, 254, 255, 0.92)";
+          ctx.lineWidth = 1.15;
+          ctx.shadowColor = "#22d3ee";
+          ctx.shadowBlur = 10;
+          ctx.beginPath();
+          ctx.moveTo(bolt.pts[0].x, bolt.pts[0].y);
+          for (let p = 1; p < bolt.pts.length; p += 1) {
+            ctx.lineTo(bolt.pts[p].x, bolt.pts[p].y);
           }
+          ctx.stroke();
+          ctx.strokeStyle = "rgba(253, 224, 71, " + (bolt.life * 0.35) + ")";
+          ctx.lineWidth = 0.6;
+          ctx.shadowBlur = 4;
+          ctx.beginPath();
+          ctx.moveTo(bolt.pts[0].x, bolt.pts[0].y);
+          for (let p = 1; p < bolt.pts.length; p += 1) {
+            ctx.lineTo(bolt.pts[p].x, bolt.pts[p].y);
+          }
+          ctx.stroke();
+          ctx.restore();
         }
       }
 
       function tick() {
-        if (!dragging) yaw += 0.002;
-        render();
+        t += 0.016;
+        baseR = Math.min(w, h) * BASE_R_FRAC;
+        if (w < 2) {
+          requestAnimationFrame(tick);
+          return;
+        }
+
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, w, h);
+
+        const amb = ctx.createRadialGradient(cx, cy, baseR * 0.05, cx, cy, baseR * 5.2);
+        amb.addColorStop(0, "rgba(45, 212, 191, 0.14)");
+        amb.addColorStop(0.35, "rgba(6, 182, 212, 0.045)");
+        amb.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = amb;
+        ctx.fillRect(0, 0, w, h);
+
+        for (let b = 0; b < bolts.length; b += 1) {
+          bolts[b].life -= 0.055;
+        }
+        if (bolts.length === 0 || bolts.every((x) => x.life <= 0)) {
+          regenBolts();
+        }
+
+        drawRings();
+        drawCoreGlow();
+
+        ctx.save();
+        hexClipPath();
+        ctx.clip();
+        drawBolts();
+
+        if (Math.random() < 0.45) spawnSpark();
+        for (let i = sparks.length - 1; i >= 0; i -= 1) {
+          const s = sparks[i];
+          s.x += s.vx;
+          s.y += s.vy;
+          s.vx *= 0.97;
+          s.vy *= 0.97;
+          s.life -= 0.036;
+          if (s.life <= 0) {
+            sparks.splice(i, 1);
+            continue;
+          }
+          ctx.save();
+          ctx.globalAlpha = s.life;
+          ctx.fillStyle = s.warm ? "#fef9c3" : "#ecfeff";
+          ctx.shadowColor = s.warm ? "#facc15" : "#22d3ee";
+          ctx.shadowBlur = 7;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, 1.2 + s.life * 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+        if (sparks.length > 80) sparks.splice(0, sparks.length - 80);
+        ctx.restore();
+
+        drawCoreInner();
+
         requestAnimationFrame(tick);
       }
-      tick();
 
-      canvas.addEventListener("mousedown", (e) => {
-        dragging = true;
-        lx = e.clientX;
-        ly = e.clientY;
-      });
-      window.addEventListener("mouseup", () => { dragging = false; });
-      window.addEventListener("mousemove", (e) => {
-        if (!dragging) return;
-        const dx = e.clientX - lx;
-        const dy = e.clientY - ly;
-        lx = e.clientX;
-        ly = e.clientY;
-        yaw += dx * 0.005;
-        pitch += dy * 0.005;
-        pitch = Math.max(-1.4, Math.min(1.4, pitch));
-      });
-      canvas.addEventListener("wheel", (e) => {
-        e.preventDefault();
-        zoom *= e.deltaY > 0 ? 0.92 : 1.08;
-        zoom = Math.max(0.45, Math.min(2.4, zoom));
-      }, { passive: false });
+      window.addEventListener("resize", resize);
+      resize();
+      regenBolts();
+      requestAnimationFrame(tick);
+    })();
 
-      refreshSpace = async () => {
-        try {
-          const r = await fetch("/api/space");
-          if (!r.ok) return;
-          const data = await r.json();
-          nodes = Array.isArray(data.nodes) ? data.nodes : [];
-          links = Array.isArray(data.links) ? data.links : [];
-          sceneTrails = data.scene_trails && typeof data.scene_trails === "object" ? data.scene_trails : {};
-        } catch {
-          // ignore
-        }
-      };
-      setInterval(refreshSpace, 2500);
-      refreshSpace();
+    function hudSetBar(el, pct) {
+      const n = Math.max(0, Math.min(100, Number(pct) || 0));
+      el.style.width = n + "%";
+      el.classList.remove("hud-bar-fill--warm", "hud-bar-fill--hot");
+      if (n >= 90) el.classList.add("hud-bar-fill--hot");
+      else if (n >= 75) el.classList.add("hud-bar-fill--warm");
     }
 
-    init3D();
-    initSpeechRecognition();
-    setTtsUi();
+    (function initHud() {
+      const errEl = document.getElementById("hudError");
+      const led = document.getElementById("hudLed");
+
+      async function refreshHud() {
+        try {
+          const r = await fetch("/api/system");
+          if (!r.ok) throw new Error("telemetry unavailable");
+          const d = await r.json();
+          errEl.hidden = true;
+
+          document.getElementById("hudHostname").textContent = d.hostname || "—";
+          document.getElementById("hudPlatform").textContent =
+            [d.os_name, d.os_release].filter(Boolean).join(" ") || "—";
+          document.getElementById("hudStatus").textContent = d.status || "NOMINAL";
+
+          const cpu = d.cpu_percent;
+          const ram = d.ram_percent;
+          const disk = d.disk_percent;
+          document.getElementById("hudCpuPct").textContent = cpu;
+          hudSetBar(document.getElementById("hudCpuBar"), cpu);
+          document.getElementById("hudCpuSub").textContent =
+            (d.cpu_cores_logical || 0) + " logical processors";
+
+          document.getElementById("hudRamPct").textContent = ram;
+          hudSetBar(document.getElementById("hudRamBar"), ram);
+          document.getElementById("hudRamSub").textContent =
+            d.ram_used_gb + " / " + d.ram_total_gb + " GB";
+
+          const mount = d.disk_mount || "";
+          document.getElementById("hudDiskMount").textContent = mount ? "(" + mount + ")" : "";
+          document.getElementById("hudDiskPct").textContent = disk;
+          hudSetBar(document.getElementById("hudDiskBar"), disk);
+          document.getElementById("hudDiskSub").textContent =
+            d.disk_used_gb + " / " + d.disk_total_gb + " GB";
+
+          led.classList.remove("warn", "err");
+          if (cpu >= 92 || ram >= 94 || disk >= 96) {
+            led.classList.add("err");
+            document.getElementById("hudStatus").textContent = "CRITICAL";
+          } else if (cpu >= 78 || ram >= 82 || disk >= 88) {
+            led.classList.add("warn");
+            document.getElementById("hudStatus").textContent = "ELEVATED";
+          } else {
+            document.getElementById("hudStatus").textContent = d.status || "NOMINAL";
+          }
+        } catch {
+          errEl.hidden = false;
+          led.classList.remove("warn");
+          led.classList.add("err");
+          document.getElementById("hudStatus").textContent = "NO DATA";
+        }
+      }
+
+      refreshHud();
+      setInterval(refreshHud, 2500);
+    })();
+
+    (function initPersonaPanel() {
+      const editor = document.getElementById("personaEditor");
+      const hint = document.getElementById("personaHint");
+      const saveBtn = document.getElementById("personaSave");
+      const enhanceBtn = document.getElementById("personaEnhance");
+      const enhancedOut = document.getElementById("personaEnhancedOut");
+      const enhancedWrap = document.getElementById("personaEnhancedWrap");
+      const panelStatus = document.getElementById("personaPanelStatus");
+      const pathLabel = document.getElementById("personaPathLabel");
+      const includeCurrent = document.getElementById("personaIncludeCurrent");
+
+      function setPanelStatus(msg, isError) {
+        panelStatus.textContent = msg || "";
+        panelStatus.classList.toggle("error", !!isError);
+      }
+
+      function apiErrorMessage(data, fallback) {
+        const d = data && data.detail;
+        if (Array.isArray(d)) {
+          return d.map((x) => (x && x.msg) || JSON.stringify(x)).join("; ");
+        }
+        if (typeof d === "string") return d;
+        return fallback || "Request failed";
+      }
+
+      async function loadPersona() {
+        setPanelStatus("Loading persona…");
+        try {
+          const r = await fetch("/api/persona");
+          const d = await r.json();
+          if (!r.ok) throw new Error(apiErrorMessage(d, r.statusText));
+          editor.value = d.content || "";
+          pathLabel.textContent = d.path || "";
+          if (d.exists === false) {
+            setPanelStatus(
+              "No file yet at this path — chat uses an empty persona until you Save.",
+              true
+            );
+          } else {
+            setPanelStatus("Loaded. Edit and Save, or use Enhance.");
+          }
+        } catch (e) {
+          setPanelStatus(String(e.message || e), true);
+        }
+      }
+
+      saveBtn.addEventListener("click", async () => {
+        setPanelStatus("Saving…");
+        try {
+          const r = await fetch("/api/persona", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: editor.value }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(apiErrorMessage(d, r.statusText));
+          setPanelStatus("Saved. Next chat uses this persona.");
+        } catch (e) {
+          setPanelStatus(String(e.message || e), true);
+        }
+      });
+
+      document.getElementById("personaReplaceWithEnhanced").addEventListener("click", () => {
+        editor.value = enhancedOut.value;
+        enhancedWrap.hidden = true;
+        setPanelStatus("Editor replaced with proposed text. Save to persist.");
+      });
+
+      document.getElementById("personaAppendEnhanced").addEventListener("click", () => {
+        const a = editor.value.trimEnd();
+        const b = enhancedOut.value.trim();
+        editor.value = a ? a + "\n\n" + b : b;
+        enhancedWrap.hidden = true;
+        setPanelStatus("Appended. Save to persist.");
+      });
+
+      enhanceBtn.addEventListener("click", async () => {
+        const h = hint.value.trim();
+        if (!h) {
+          setPanelStatus("Enter a short direction, then Enhance.", true);
+          return;
+        }
+        enhanceBtn.disabled = true;
+        setPanelStatus("Calling model…");
+        enhancedWrap.hidden = true;
+        try {
+          const r = await fetch("/api/persona/enhance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              hint: h,
+              include_current: includeCurrent.checked,
+            }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(apiErrorMessage(d, r.statusText));
+          enhancedOut.value = d.enhanced || "";
+          enhancedWrap.hidden = false;
+          setPanelStatus("Review proposed text — Replace or Append, then Save if you want it on disk.");
+        } catch (e) {
+          setPanelStatus(String(e.message || e), true);
+        } finally {
+          enhanceBtn.disabled = false;
+        }
+      });
+
+      loadPersona();
+    })();
 
     input.focus();
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const sharedNodeGeom = new THREE.SphereGeometry(0.042, 14, 12);
+    let scene;
+    let camera;
+    let renderer;
+    let controls;
+    let nodesGroup;
+    let linksGroup;
+    let trailsGroup;
+    let beaconMesh;
+    let raf = 0;
+    let hostEl = null;
+    let resizeObserver = null;
+
+    function commitmentColor(c) {
+      const k = String(c || "").toLowerCase();
+      const map = {
+        founding: 0x64748b,
+        recognition: 0x22d3ee,
+        deepening: 0x34d399,
+        bridging: 0xa78bfa,
+      };
+      return map[k] || 0x67e8f9;
+    }
+
+    function disposeObject(o, skipGeom) {
+      if (!o) return;
+      if (o.geometry && o.geometry !== skipGeom) o.geometry.dispose();
+      if (o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (let i = 0; i < mats.length; i += 1) mats[i].dispose();
+      }
+    }
+
+    function clearGroup(g, skipGeom) {
+      while (g.children.length > 0) {
+        const o = g.children[0];
+        g.remove(o);
+        disposeObject(o, skipGeom);
+      }
+    }
+
+    function setBeacon(x, y, z) {
+      if (!scene) return;
+      const ok =
+        Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z);
+      if (!ok) {
+        if (beaconMesh) {
+          scene.remove(beaconMesh);
+          disposeObject(beaconMesh, null);
+          beaconMesh = null;
+        }
+        return;
+      }
+      if (!beaconMesh) {
+        const g = new THREE.SphereGeometry(0.075, 18, 16);
+        const m = new THREE.MeshStandardMaterial({
+          color: 0xfef08a,
+          emissive: 0xfacc15,
+          emissiveIntensity: 0.55,
+          metalness: 0.15,
+          roughness: 0.35,
+        });
+        beaconMesh = new THREE.Mesh(g, m);
+        scene.add(beaconMesh);
+      }
+      beaconMesh.position.set(x, y, z);
+    }
+
+    function syncBeaconFromWindow() {
+      const d = window.__spatialEncounterState;
+      if (d && Number.isFinite(Number(d.x))) {
+        setBeacon(Number(d.x), Number(d.y), Number(d.z));
+      } else {
+        setBeacon(NaN, NaN, NaN);
+      }
+    }
+
+    function buildFromSnapshot(data) {
+      if (!nodesGroup || !linksGroup || !trailsGroup) return;
+      clearGroup(nodesGroup, sharedNodeGeom);
+      clearGroup(linksGroup, null);
+      clearGroup(trailsGroup, null);
+
+      const nodes = data.nodes || [];
+      const posById = new Map();
+
+      for (let i = 0; i < nodes.length; i += 1) {
+        const n = nodes[i];
+        const contested = !!n.contested;
+        const c = contested ? 0xf87171 : commitmentColor(n.commitment_type);
+        const mat = new THREE.MeshStandardMaterial({
+          color: c,
+          emissive: contested ? 0x450a0a : c,
+          emissiveIntensity: contested ? 0.4 : 0.1,
+          metalness: 0.25,
+          roughness: 0.5,
+        });
+        const mesh = new THREE.Mesh(sharedNodeGeom, mat);
+        mesh.position.set(n.x, n.y, n.z);
+        nodesGroup.add(mesh);
+        posById.set(n.id, mesh.position);
+      }
+
+      const links = data.links || [];
+      for (let j = 0; j < links.length; j += 1) {
+        const L = links[j];
+        const pa = posById.get(L.source_id);
+        const pb = posById.get(L.target_id);
+        if (!pa || !pb) continue;
+        const geom = new THREE.BufferGeometry().setFromPoints([pa.clone(), pb.clone()]);
+        const col =
+          L.link_type === "tension"
+            ? 0xc084fc
+            : L.link_type === "bridge"
+              ? 0x6ee7b7
+              : 0x3a6b7a;
+        const op = Math.max(0.12, Math.min(0.75, 0.22 + (Number(L.strength) || 0) * 0.45));
+        const mat = new THREE.LineBasicMaterial({
+          color: col,
+          transparent: true,
+          opacity: op,
+        });
+        linksGroup.add(new THREE.Line(geom, mat));
+      }
+
+      const trails = data.scene_trails || {};
+      const keys = Object.keys(trails);
+      for (let k = 0; k < keys.length; k += 1) {
+        const pts = trails[keys[k]];
+        if (!pts || pts.length < 2) continue;
+        const arr = [];
+        for (let p = 0; p < pts.length; p += 1) {
+          arr.push(new THREE.Vector3(pts[p].x, pts[p].y, pts[p].z));
+        }
+        const geom = new THREE.BufferGeometry().setFromPoints(arr);
+        const mat = new THREE.LineBasicMaterial({
+          color: 0x2dd4bf,
+          transparent: true,
+          opacity: 0.32,
+        });
+        trailsGroup.add(new THREE.Line(geom, mat));
+      }
+
+      syncBeaconFromWindow();
+    }
+
+    function animate() {
+      raf = requestAnimationFrame(animate);
+      if (controls) controls.update();
+      if (renderer && scene && camera) renderer.render(scene, camera);
+    }
+
+    function teardown() {
+      cancelAnimationFrame(raf);
+      raf = 0;
+      if (resizeObserver && hostEl) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+      }
+      if (beaconMesh && scene) {
+        scene.remove(beaconMesh);
+        disposeObject(beaconMesh, null);
+        beaconMesh = null;
+      }
+      if (nodesGroup) clearGroup(nodesGroup, sharedNodeGeom);
+      if (linksGroup) clearGroup(linksGroup, null);
+      if (trailsGroup) clearGroup(trailsGroup, null);
+      if (renderer) {
+        renderer.dispose();
+        if (hostEl && renderer.domElement.parentNode === hostEl) {
+          hostEl.removeChild(renderer.domElement);
+        }
+      }
+      controls = null;
+      renderer = null;
+      scene = null;
+      camera = null;
+      nodesGroup = null;
+      linksGroup = null;
+      trailsGroup = null;
+      hostEl = null;
+    }
+
+    function mount(host) {
+      if (renderer) teardown();
+      hostEl = host;
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(48, 1, 0.04, 80);
+      camera.position.set(2.45, 1.95, 2.45);
+      camera.lookAt(0, 0, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setClearColor(0x000000, 0);
+      host.appendChild(renderer.domElement);
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.07;
+      controls.minDistance = 1.15;
+      controls.maxDistance = 6.5;
+      controls.target.set(0, 0, 0);
+
+      scene.add(new THREE.AmbientLight(0xb8d4ff, 0.38));
+      const dir = new THREE.DirectionalLight(0xffffff, 0.95);
+      dir.position.set(2.2, 4.5, 2.8);
+      scene.add(dir);
+      const fill = new THREE.DirectionalLight(0x22d3ee, 0.22);
+      fill.position.set(-3, -1, -2);
+      scene.add(fill);
+
+      const boxGeom = new THREE.BoxGeometry(2, 2, 2);
+      const edges = new THREE.EdgesGeometry(boxGeom);
+      const bounds = new THREE.LineSegments(
+        edges,
+        new THREE.LineBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.38 }),
+      );
+      scene.add(bounds);
+
+      linksGroup = new THREE.Group();
+      trailsGroup = new THREE.Group();
+      nodesGroup = new THREE.Group();
+      scene.add(linksGroup);
+      scene.add(trailsGroup);
+      scene.add(nodesGroup);
+
+      function resize() {
+        if (!hostEl || !renderer || !camera) return;
+        const w = hostEl.clientWidth;
+        const h = hostEl.clientHeight;
+        if (w < 2 || h < 2) return;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h, false);
+      }
+      resizeObserver = new ResizeObserver(resize);
+      resizeObserver.observe(host);
+      resize();
+      animate();
+    }
+
+    async function refreshMemoryFieldViz() {
+      const status = document.getElementById("memoryFieldVizStatus");
+      const host = document.getElementById("memoryFieldCanvasHost");
+      if (!host) return;
+      if (!renderer) mount(host);
+      try {
+        const r = await fetch("/api/space");
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          const msg = typeof d.detail === "string" ? d.detail : r.statusText || "failed";
+          throw new Error(msg);
+        }
+        buildFromSnapshot(d);
+        const nn = (d.nodes && d.nodes.length) || 0;
+        const nl = (d.links && d.links.length) || 0;
+        const nt = d.scene_trails ? Object.keys(d.scene_trails).length : 0;
+        status.textContent = nn + " nodes · " + nl + " links · " + nt + " scene trails";
+        status.classList.remove("error");
+      } catch (e) {
+        status.textContent = String(e.message || e);
+        status.classList.add("error");
+      }
+    }
+
+    window.refreshMemoryFieldViz = refreshMemoryFieldViz;
+    window.__memoryFieldUpdateBeacon = syncBeaconFromWindow;
+
+    function boot() {
+      const host = document.getElementById("memoryFieldCanvasHost");
+      if (!host) return;
+      mount(host);
+      refreshMemoryFieldViz();
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", boot);
+    } else {
+      boot();
+    }
   </script>
 </body>
 </html>

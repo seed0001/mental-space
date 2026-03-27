@@ -9,6 +9,7 @@ from spatial_memory.decider import decide_commitment_type, format_global_snippet
 from spatial_memory.inspector import compute_resonance, global_memory_snippets, inspect_region
 from spatial_memory.lifecycle import apply_post_turn
 from spatial_memory.models import CommitmentType, Decision, Orientation
+from spatial_memory.inference_options import ResponseInferenceOptions
 from spatial_memory.responder import generate_response, generate_response_stream
 from spatial_memory.scene import resolve_active_scene
 from spatial_memory.space_shape import constrain_to_bean_space
@@ -114,7 +115,12 @@ def _prepare_turn(raw_message: str, db_path: str | None = None):
     return orientation, (x, y, z), neighborhood, decision, per_res, msg_vec, scene_resolution
 
 
-def process_message(raw_message: str, *, db_path: str | None = None) -> PipelineResult:
+def process_message(
+    raw_message: str,
+    *,
+    db_path: str | None = None,
+    inference: ResponseInferenceOptions | None = None,
+) -> PipelineResult:
     """
     encounter → orient → arrive / inspect → assess → decide → respond → commit → consolidate
     """
@@ -127,6 +133,7 @@ def process_message(raw_message: str, *, db_path: str | None = None) -> Pipeline
         decision.commitment_type,
         decision.caution_internal_conflict,
         decision.rationale,
+        inference=inference,
     )
     primary = commit_to_memory(
         raw_message,
@@ -181,7 +188,12 @@ def process_message(raw_message: str, *, db_path: str | None = None) -> Pipeline
     )
 
 
-def process_message_stream(raw_message: str, *, db_path: str | None = None):
+def process_message_stream(
+    raw_message: str,
+    *,
+    db_path: str | None = None,
+    inference: ResponseInferenceOptions | None = None,
+):
     """Same pipeline; final generation streams tokens as dict events (NDJSON lines)."""
     orientation, coord, neighborhood, decision, per_res, _msg_vec, scene_resolution = _prepare_turn(raw_message, db_path)
     x, y, z = coord
@@ -209,6 +221,7 @@ def process_message_stream(raw_message: str, *, db_path: str | None = None):
         decision.commitment_type,
         decision.caution_internal_conflict,
         decision.rationale,
+        inference=inference,
     ):
         parts.append(token)
         yield {"event": "token", "text": token}

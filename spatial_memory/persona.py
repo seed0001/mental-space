@@ -6,16 +6,25 @@ import os
 from pathlib import Path
 
 _PKG = Path(__file__).resolve().parent
-_PROJECT_ROOT = _PKG.parent
+
+
+def _project_root() -> Path:
+    """Directory that contains persona.txt by default (same folder as chat_server / launch)."""
+    env = os.environ.get("SPATIAL_MEMORY_PROJECT_ROOT", "").strip()
+    if env:
+        return Path(env).expanduser().resolve()
+    return _PKG.parent.resolve()
+
 
 def persona_path() -> Path:
     raw = os.environ.get("PERSONA_FILE", "").strip()
+    root = _project_root()
     if raw:
         p = Path(raw).expanduser()
         if not p.is_absolute():
-            p = (_PROJECT_ROOT / p).resolve()
+            p = (root / p).resolve()
         return p
-    return _PROJECT_ROOT / "persona.txt"
+    return (root / "persona.txt").resolve()
 
 
 def _strip_hash_comments(text: str) -> str:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from spatial_memory.inference_options import ResponseInferenceOptions
 from spatial_memory.models import CommitmentType
 from spatial_memory.ollama_client import chat, chat_stream
 from spatial_memory.persona import load_persona
@@ -56,6 +57,7 @@ def generate_response(
     decision_rationale: str = "",
     *,
     temperature: float = 0.4,
+    inference: ResponseInferenceOptions | None = None,
 ) -> str:
     mem = "\n\n--- Activated memory field ---\n"
     if memory_to_inject:
@@ -70,6 +72,15 @@ def generate_response(
         caution_internal_conflict,
         decision_rationale or "(no rationale)",
     ) + mem
+    if inference is not None:
+        return chat(
+            system,
+            raw_message,
+            model=inference.model,
+            temperature=0.0,
+            json_mode=False,
+            options=inference.to_ollama_options(),
+        )
     return chat(system, raw_message, temperature=temperature, json_mode=False)
 
 
@@ -82,6 +93,7 @@ def generate_response_stream(
     decision_rationale: str = "",
     *,
     temperature: float = 0.4,
+    inference: ResponseInferenceOptions | None = None,
 ):
     mem = "\n\n--- Activated memory field ---\n"
     if memory_to_inject:
@@ -96,4 +108,13 @@ def generate_response_stream(
         caution_internal_conflict,
         decision_rationale or "(no rationale)",
     ) + mem
-    yield from chat_stream(system, raw_message, temperature=temperature)
+    if inference is not None:
+        yield from chat_stream(
+            system,
+            raw_message,
+            model=inference.model,
+            temperature=0.0,
+            options=inference.to_ollama_options(),
+        )
+    else:
+        yield from chat_stream(system, raw_message, temperature=temperature)

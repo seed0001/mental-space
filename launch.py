@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 def main() -> int:
+    os.environ.setdefault("SPATIAL_MEMORY_PROJECT_ROOT", str(ROOT))
     os.chdir(ROOT)
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
