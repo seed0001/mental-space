@@ -19,3 +19,16 @@ COACTIVATION_REINFORCE_DELTA = float(os.environ.get("COACTIVATION_REINFORCE_DELT
 COMMITMENT_USE_LLM = os.environ.get("COMMITMENT_USE_LLM", "").strip().lower() in ("1", "true", "yes")
 # If true, every user turn is materialized as its own node for visualization/debugging.
 TURN_TRACE_NODE = os.environ.get("TURN_TRACE_NODE", "1").strip().lower() in ("1", "true", "yes")
+
+# Orientation momentum: blend classifier output with previous turn position (0 = disabled).
+# New raw position = (1 - w) * classifier + w * previous; then bean constraint applies.
+ORIENTATION_MOMENTUM_PREV_WEIGHT = float(os.environ.get("ORIENTATION_MOMENTUM_PREV_WEIGHT", "0.3"))
+# scene = last event in the active thread only; global = last event anywhere (cross-thread carryover).
+ORIENTATION_MOMENTUM_SCOPE = os.environ.get("ORIENTATION_MOMENTUM_SCOPE", "scene").strip().lower()
+# Inject recent scene-event xyz + stance into classifier prompt for trajectory awareness.
+ORIENTATION_CLASSIFIER_SCENE_TRAIL = os.environ.get("ORIENTATION_CLASSIFIER_SCENE_TRAIL", "1").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
+ORIENTATION_SCENE_TRAIL_EVENTS = int(os.environ.get("ORIENTATION_SCENE_TRAIL_EVENTS", "5"))

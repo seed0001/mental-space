@@ -4,13 +4,30 @@ from dataclasses import dataclass
 
 from spatial_memory.classifier import classify_message
 from spatial_memory.commit import commit_to_memory
-from spatial_memory.config import COMMITMENT_USE_LLM
+from spatial_memory.config import (
+    COMMITMENT_USE_LLM,
+    ORIENTATION_CLASSIFIER_SCENE_TRAIL,
+    ORIENTATION_MOMENTUM_PREV_WEIGHT,
+    ORIENTATION_MOMENTUM_SCOPE,
+    ORIENTATION_SCENE_TRAIL_EVENTS,
+)
+from spatial_memory.deep_remember import (
+    format_full_field_digest,
+    is_deep_remember_trigger,
+    weave_memory_field,
+    weave_result_to_dict,
+)
 from spatial_memory.decider import decide_commitment_type, format_global_snippets
 from spatial_memory.inspector import compute_resonance, global_memory_snippets, inspect_region
 from spatial_memory.lifecycle import apply_post_turn
 from spatial_memory.models import CommitmentType, Decision, Orientation
 from spatial_memory.inference_options import ResponseInferenceOptions
 from spatial_memory.responder import generate_response, generate_response_stream
+from spatial_memory.orientation_context import (
+    blend_with_previous,
+    classifier_scene_trail_suffix,
+    previous_xyz_for_momentum,
+)
 from spatial_memory.scene import resolve_active_scene
 from spatial_memory.space_shape import constrain_to_bean_space
 from spatial_memory import store
@@ -23,23 +40,8 @@ class PipelineResult:
     commitment_type: CommitmentType
     decision: Decision
     coordinate: tuple[float, float, float]
-
-
-def _scene_state(events: list[dict]) -> str:
-    if not events:
-        return "active"
-    last = (events[-1].get("user_message") or "").lower()
-    if any(k in last for k in ("resolved", "thanks", "thank you", "sorry", "apology", "we're good", "all good")):
-        return "resolved"
-    return "active"
-
-
-def _scene_trajectory(events: list[dict]) -> str:
-    if not events:
-        return "unknown"
-    start = events[0].get("commitment_type", "founding")
-    end = events[-1].get("commitment_type", "deepening")
-    return f"{start} -> {end}"
+    deep_remember: bool = False
+    consolidation: dict | None = None
 
 
 def _scene_memory_snippets(nodes, per_res, *, db_path: str | None = None) -> list[str]:
@@ -64,10 +66,8 @@ def _scene_memory_snippets(nodes, per_res, *, db_path: str | None = None) -> lis
         peak = max(events, key=lambda e: float(e.get("confidence", 0.0)))
         peak_msg = (peak.get("user_message") or "").strip().replace("\n", " ")
         snippet = (
-            f"[scene {sid[:8]}… continuity={per_res.get(n.id, 0.0):.2f}] "
-            f"start: {start[:180]} | peak: {peak_msg[:180]} | end: {end[:180]} | "
-            f"trajectory: {_scene_trajectory(events)} | state: {_scene_state(events)} | "
-            f"events={len(events)}"
+            f"Thread in this conversation — how it started: {start[:180]} · "
+            f"strongest moment: {peak_msg[:180]} · latest: {end[:180]}"
         )
         out.append(snippet)
         if len(out) >= 4:
@@ -77,9 +77,38 @@ def _scene_memory_snippets(nodes, per_res, *, db_path: str | None = None) -> lis
 
 def _prepare_turn(raw_message: str, db_path: str | None = None):
     store.init_db(db_path)
-    scene_resolution = resolve_active_scene(raw_message, db_path=db_path)
-    orientation = classify_message(raw_message)
-    x, y, z = constrain_to_bean_space(*orientation.as_tuple())
+    deep = is_deep_remember_trigger(raw_message)
+    weave = weave_memory_field(db_path=db_path) if deep else None
+    scene_resolution = resolve_active_scene(raw_message, db_path=db_path, bypass_merge=deep)
+    active = store.get_active_scene(db_path=db_path)
+    active_sid = str(active["id"]) if active else None
+
+    trail_suffix = ""
+    prev_xyz = None
+    if not deep:
+        if ORIENTATION_CLASSIFIER_SCENE_TRAIL and active_sid:
+            trail_suffix = classifier_scene_trail_suffix(
+                active_sid,
+                max_events=ORIENTATION_SCENE_TRAIL_EVENTS,
+                db_path=db_path,
+            )
+        if ORIENTATION_MOMENTUM_PREV_WEIGHT > 0:
+            prev_xyz = previous_xyz_for_momentum(
+                scope=ORIENTATION_MOMENTUM_SCOPE,
+                active_scene_id=active_sid,
+                db_path=db_path,
+            )
+
+    orientation = classify_message(raw_message, extra_system_suffix=trail_suffix)
+    sx, sy, sz = orientation.as_tuple()
+    bx, by, bz = blend_with_previous(sx, sy, sz, prev_xyz, ORIENTATION_MOMENTUM_PREV_WEIGHT)
+    orientation = Orientation(
+        self_other=bx,
+        known_unknown=by,
+        active_contemplative=bz,
+        classifier_prompt_version=orientation.classifier_prompt_version,
+    )
+    x, y, z = constrain_to_bean_space(bx, by, bz)
     neighborhood = inspect_region(x, y, z, db_path=db_path)
     if scene_resolution.should_merge and scene_resolution.node_id:
         active_node = store.get_node(scene_resolution.node_id, db_path=db_path)
@@ -93,7 +122,7 @@ def _prepare_turn(raw_message: str, db_path: str | None = None):
         decision.commitment_type = CommitmentType.DEEPENING
         decision.rule_id = f"scene_merge:{decision.rule_id}"
         decision.rationale = (
-            f"Continuing active scene ({scene_resolution.reason}); update timeline of existing scene node."
+            f"Continuing the same thread ({scene_resolution.reason}); stay consistent with what came before."
         )
         if scene_resolution.node_id:
             decision.activated_node_ids = [scene_resolution.node_id]
@@ -110,9 +139,17 @@ def _prepare_turn(raw_message: str, db_path: str | None = None):
         gh = global_memory_snippets(msg_vec, db_path=db_path)
         decision.memory_to_inject = format_global_snippets(gh)
     scene_snippets = _scene_memory_snippets(neighborhood.nodes, per_res, db_path=db_path)
-    if scene_snippets:
+    if deep:
+        decision.memory_to_inject = format_full_field_digest(db_path=db_path)
+        if scene_snippets:
+            decision.memory_to_inject = scene_snippets[:2] + decision.memory_to_inject
+        decision.rule_id = f"deep_remember:{decision.rule_id}"
+        decision.rationale = (
+            "They asked you to think it through; more of what you might remember was brought forward for this reply."
+        )
+    elif scene_snippets:
         decision.memory_to_inject = scene_snippets + decision.memory_to_inject[:2]
-    return orientation, (x, y, z), neighborhood, decision, per_res, msg_vec, scene_resolution
+    return orientation, (x, y, z), neighborhood, decision, per_res, msg_vec, scene_resolution, deep, weave
 
 
 def process_message(
@@ -124,7 +161,9 @@ def process_message(
     """
     encounter → orient → arrive / inspect → assess → decide → respond → commit → consolidate
     """
-    orientation, coord, neighborhood, decision, per_res, _msg_vec, scene_resolution = _prepare_turn(raw_message, db_path)
+    orientation, coord, neighborhood, decision, per_res, _msg_vec, scene_resolution, deep, weave = _prepare_turn(
+        raw_message, db_path
+    )
     x, y, z = coord
     response = generate_response(
         raw_message,
@@ -132,8 +171,8 @@ def process_message(
         decision.confidence_level,
         decision.commitment_type,
         decision.caution_internal_conflict,
-        decision.rationale,
         inference=inference,
+        deep_memory_scan=deep,
     )
     primary = commit_to_memory(
         raw_message,
@@ -185,6 +224,8 @@ def process_message(
         commitment_type=decision.commitment_type,
         decision=decision,
         coordinate=coord,
+        deep_remember=deep,
+        consolidation=weave_result_to_dict(weave) if deep and weave is not None else None,
     )
 
 
@@ -195,24 +236,27 @@ def process_message_stream(
     inference: ResponseInferenceOptions | None = None,
 ):
     """Same pipeline; final generation streams tokens as dict events (NDJSON lines)."""
-    orientation, coord, neighborhood, decision, per_res, _msg_vec, scene_resolution = _prepare_turn(raw_message, db_path)
+    orientation, coord, neighborhood, decision, per_res, _msg_vec, scene_resolution, deep, weave = _prepare_turn(
+        raw_message, db_path
+    )
     x, y, z = coord
-    yield {
-        "event": "meta",
-        "data": {
-            "x": x,
-            "y": y,
-            "z": z,
-            "commitment": decision.commitment_type.value,
-            "confidence": decision.confidence_level,
-            "caution": decision.caution_internal_conflict,
-            "rule_id": decision.rule_id,
-            "rationale": decision.rationale,
-            "density": decision.inspection_density,
-            "coherence": decision.inspection_coherence,
-            "resonance_max": decision.resonance_max,
-        },
+    meta: dict = {
+        "x": x,
+        "y": y,
+        "z": z,
+        "commitment": decision.commitment_type.value,
+        "confidence": decision.confidence_level,
+        "caution": decision.caution_internal_conflict,
+        "rule_id": decision.rule_id,
+        "rationale": decision.rationale,
+        "density": decision.inspection_density,
+        "coherence": decision.inspection_coherence,
+        "resonance_max": decision.resonance_max,
+        "deep_remember": deep,
     }
+    if deep and weave is not None:
+        meta["consolidation"] = weave_result_to_dict(weave)
+    yield {"event": "meta", "data": meta}
     parts: list[str] = []
     for token in generate_response_stream(
         raw_message,
@@ -220,8 +264,8 @@ def process_message_stream(
         decision.confidence_level,
         decision.commitment_type,
         decision.caution_internal_conflict,
-        decision.rationale,
         inference=inference,
+        deep_memory_scan=deep,
     ):
         parts.append(token)
         yield {"event": "token", "text": token}
@@ -270,17 +314,18 @@ def process_message_stream(
         committed_node_id=primary.id if primary else None,
         db_path=db_path,
     )
-    yield {
-        "event": "done",
-        "data": {
-            "reply": response,
-            "x": x,
-            "y": y,
-            "z": z,
-            "commitment": decision.commitment_type.value,
-            "confidence": decision.confidence_level,
-            "caution": decision.caution_internal_conflict,
-            "rule_id": decision.rule_id,
-            "rationale": decision.rationale,
-        },
+    done_data: dict = {
+        "reply": response,
+        "x": x,
+        "y": y,
+        "z": z,
+        "commitment": decision.commitment_type.value,
+        "confidence": decision.confidence_level,
+        "caution": decision.caution_internal_conflict,
+        "rule_id": decision.rule_id,
+        "rationale": decision.rationale,
+        "deep_remember": deep,
     }
+    if deep and weave is not None:
+        done_data["consolidation"] = weave_result_to_dict(weave)
+    yield {"event": "done", "data": done_data}

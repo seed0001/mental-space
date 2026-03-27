@@ -6,17 +6,17 @@ from spatial_memory.models import CommitmentType, Decision, MemoryNode, Neighbor
 from spatial_memory.ollama_client import chat, parse_json_loose
 
 
-_REFINE_SYSTEM = """You audit a spatial-memory commitment decision. You receive numeric inspection summaries and a proposed commitment.
+_REFINE_SYSTEM = """You audit a proposed stance toward prior context (not visible here). You see numeric summaries and a proposed label.
 You may KEEP the proposed type or CHANGE it only if the evidence clearly warrants it.
 Valid commitment_type values: recognition, deepening, bridging, founding.
 
 Rules you must respect:
 - If internal_conflict_caution is true, you must NOT output recognition. Prefer deepening or founding.
 - If density is high but coherence is low, that is contested ground — never high-confidence recognition.
-- Bridging requires evidence that multiple distinct memory regions (spatially or semantically) both resonate.
+- Bridging requires evidence that more than one distinct thread of context genuinely applies.
 
 Reply with ONLY JSON:
-{"commitment_type":"<string>","confidence":<float 0-1>,"rationale":"<one or two sentences>"}"""
+{"commitment_type":"<string>","confidence":<float 0-1>,"rationale":"<one or two sentences in plain language>"}"""
 
 
 def maybe_refine_with_llm(
@@ -42,7 +42,7 @@ Inspection:
 - proposed_confidence: {decision.confidence_level:.4f}
 - internal_conflict_caution: {decision.caution_internal_conflict}
 
-Top neighborhood nodes (id, res, xyz):
+Top local context rows (internal ids; do not echo in rationale):
 {node_lines}
 
 Proposed rationale: {decision.rationale}
@@ -62,7 +62,7 @@ Proposed rationale: {decision.rationale}
             confidence_level=conf,
             caution_internal_conflict=decision.caution_internal_conflict,
             activated_node_ids=list(decision.activated_node_ids),
-            rationale=f"{decision.rationale} [LLM audit: {rat}]",
+            rationale=f"{decision.rationale} [Second pass: {rat}]",
             rule_id=f"{decision.rule_id}+llm",
             inspection_density=decision.inspection_density,
             inspection_coherence=decision.inspection_coherence,

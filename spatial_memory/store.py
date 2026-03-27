@@ -476,6 +476,36 @@ def recent_scene_events(scene_id: str, *, limit: int = 10, db_path: str | None =
     return out
 
 
+def last_scene_event_xyz(scene_id: str, db_path: str | None = None) -> tuple[float, float, float] | None:
+    """Most recent (x,y,z) committed for this scene, or None if no events."""
+    init_db(db_path)
+    with connect(db_path) as conn:
+        row = conn.execute(
+            """SELECT x, y, z FROM scene_events
+               WHERE scene_id = ?
+               ORDER BY id DESC
+               LIMIT 1""",
+            (scene_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return float(row["x"]), float(row["y"]), float(row["z"])
+
+
+def last_global_scene_event_xyz(db_path: str | None = None) -> tuple[float, float, float] | None:
+    """Most recent (x,y,z) in any scene (by event id), or None."""
+    init_db(db_path)
+    with connect(db_path) as conn:
+        row = conn.execute(
+            """SELECT x, y, z FROM scene_events
+               ORDER BY id DESC
+               LIMIT 1"""
+        ).fetchone()
+    if not row:
+        return None
+    return float(row["x"]), float(row["y"]), float(row["z"])
+
+
 def get_scene_by_node_id(node_id: str, db_path: str | None = None) -> dict | None:
     with connect(db_path) as conn:
         row = conn.execute(

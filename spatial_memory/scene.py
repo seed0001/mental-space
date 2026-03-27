@@ -51,7 +51,14 @@ def _semantic_score(message: str, node_embedding_json: str | None) -> float:
         return 0.0
 
 
-def resolve_active_scene(raw_message: str, *, db_path: str | None = None) -> SceneResolution:
+def resolve_active_scene(
+    raw_message: str,
+    *,
+    db_path: str | None = None,
+    bypass_merge: bool = False,
+) -> SceneResolution:
+    if bypass_merge:
+        return SceneResolution(False, None, None, 0.0, "deep_remember_bypass")
     active = store.get_active_scene(db_path=db_path)
     if not active:
         return SceneResolution(False, None, None, 0.0, "no_active_scene")

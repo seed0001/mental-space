@@ -79,19 +79,14 @@ def _memory_snippets(nodes: Sequence[MemoryNode], per: dict[str, float], k: int 
     for n in ranked[:k]:
         if per.get(n.id, 0) < floor:
             continue
-        w = _weight_snippet(n, per.get(n.id, 0))
-        out.append(f"[memory {n.id[:8]}… w={w:.2f}] {n.understanding[:1400]}")
+        out.append(f"Earlier note:\n{n.understanding[:1400]}")
     return out
-
-
-def _weight_snippet(n: MemoryNode, res: float) -> float:
-    return res * max(0.1, n.current_relevance) * max(0.1, n.certainty)
 
 
 def format_global_snippets(pairs: list[tuple[MemoryNode, float]], k: int = 5) -> list[str]:
     out: list[str] = []
     for n, s in pairs[:k]:
-        out.append(f"[memory {n.id[:8]}… sim={s:.2f}] {n.understanding[:1400]}")
+        out.append(f"Earlier note:\n{n.understanding[:1400]}")
     return out
 
 
@@ -138,50 +133,47 @@ def decide_commitment_type(
             conf = 0.42 + 0.28 * resonance_max
             rule_id = "fragmented_deepen"
             rationale = (
-                "Dense neighborhood but low coherence between interpretations — likely contradictory "
-                "or loosely related memories; deepen cautiously instead of claiming full recognition."
+                "What you recall seems tangled or contradictory—stay measured instead of sounding like you are 100% sure."
             )
         else:
             ctype = CommitmentType.FOUNDING
             conf = 0.28 + 0.35 * resonance_max
             rule_id = "fragmented_found"
             rationale = (
-                "Dense yet incoherent region with weak resonance — treat as uncertain ground; "
-                "found or extend tentatively rather than asserting familiarity."
+                "The fit feels weak and the picture does not line up cleanly—be tentative rather than chummy."
             )
     elif density >= DENSITY_HIGH and coherence >= COHERENCE_HIGH and resonance_max >= RESONANCE_HIGH:
         ctype = CommitmentType.RECOGNITION
         conf = min(0.96, 0.68 + 0.22 * resonance_max)
         rule_id = "recognition"
-        rationale = "High reinforcement-weighted density, coherent local field, strong resonance — re-standing on known ground."
+        rationale = "Strong continuity with what you already know from them—answer from that familiarity."
     elif density >= DENSITY_HIGH and coherence >= COHERENCE_HIGH and resonance_max >= RESONANCE_MODERATE:
         ctype = CommitmentType.DEEPENING
         conf = min(0.9, 0.52 + 0.32 * resonance_max)
         rule_id = "deepening"
-        rationale = "Familiar, coherent region; message adds nuance or extension relative to prior understanding."
+        rationale = "Familiar ground; they are adding detail or shading—build on what you already share."
     elif (multi_bridge_cue or alt_bridge) and resonance_max >= RESONANCE_LOW:
         ctype = CommitmentType.BRIDGING
         conf = 0.5 + 0.22 * resonance_max
         rule_id = "bridging"
         rationale = (
-            "Input resonates across spatially separated subregions — commitment is linking disparate "
-            "patches of memory rather than a single cluster."
+            "Two different topics or times both seem relevant—connect them only if it is fair and grounded."
         )
     elif density <= DENSITY_LOW and resonance_max < RESONANCE_MODERATE:
         ctype = CommitmentType.FOUNDING
         conf = 0.3 + 0.38 * resonance_max
         rule_id = "founding_sparse"
-        rationale = "Sparse field and weak resonance — open territory; found a new node with low initial confidence."
+        rationale = "Thin connection to what came before—treat this as mostly new ground and stay modest."
     elif resonance_max >= RESONANCE_MODERATE and not fragmented:
         ctype = CommitmentType.DEEPENING
         conf = 0.48 + 0.3 * resonance_max
         rule_id = "deepening_fallback"
-        rationale = "Moderate grounding with usable resonance — extend existing structures where they fit."
+        rationale = "There is some foothold in what you already know—extend carefully where it fits."
     else:
         ctype = CommitmentType.FOUNDING
         conf = 0.36 + 0.32 * resonance_max
         rule_id = "founding_fallback"
-        rationale = "No strong match to a stable cluster — default to founding while staying honest about uncertainty."
+        rationale = "No solid match to lean on—stay honest about uncertainty."
 
     caution = fragmented
     if caution:

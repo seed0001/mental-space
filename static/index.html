@@ -610,6 +610,15 @@
       min-height: 0;
       position: relative;
     }
+    .chat-area.reactor-thinking .chat-column-glow {
+      animation-duration: 1.15s;
+      opacity: 0.55;
+      box-shadow:
+        inset 0 0 55px 2px rgba(165, 243, 252, 0.62),
+        inset 0 0 100px 18px rgba(34, 211, 238, 0.4),
+        inset 0 0 180px 42px rgba(13, 148, 136, 0.22),
+        inset 0 0 12px 0 rgba(255, 255, 255, 0.35);
+    }
     .reactor-scene {
       position: absolute;
       inset: 0;
@@ -762,7 +771,7 @@
 </head>
 <body>
   <div class="layout">
-    <aside class="side-col side-col--left" aria-label="Model, memory field, and spatial readout">
+    <aside class="side-col side-col--left" aria-label="Voice settings, inner map, and encounter readout">
       <div class="model-panel left-stack-panel" id="modelPanel">
         <span class="hud-bracket hud-bracket--tl" aria-hidden="true"></span>
         <span class="hud-bracket hud-bracket--tr" aria-hidden="true"></span>
@@ -770,10 +779,10 @@
         <span class="hud-bracket hud-bracket--br" aria-hidden="true"></span>
         <div class="hud-scanline" aria-hidden="true"></div>
         <div class="model-panel__inner">
-          <div class="hud-title">Ollama · Generation</div>
+          <div class="hud-title">Voice · generation</div>
           <div class="model-field">
             <label for="ollamaModel">Model</label>
-            <select id="ollamaModel" class="model-select" aria-label="Ollama model"></select>
+            <select id="ollamaModel" class="model-select" aria-label="Generation model"></select>
           </div>
           <div class="model-field">
             <label for="ollamaTemperature">Temperature</label>
@@ -805,23 +814,23 @@
           <p class="model-panel__status" id="modelPanelStatus"></p>
         </div>
       </div>
-      <div class="memory-field-panel left-stack-panel" id="memoryFieldPanel" aria-label="Memory field 3D view">
+      <div class="memory-field-panel left-stack-panel" id="memoryFieldPanel" aria-label="Inner map view">
         <span class="hud-bracket hud-bracket--tl" aria-hidden="true"></span>
         <span class="hud-bracket hud-bracket--tr" aria-hidden="true"></span>
         <span class="hud-bracket hud-bracket--bl" aria-hidden="true"></span>
         <span class="hud-bracket hud-bracket--br" aria-hidden="true"></span>
         <div class="hud-scanline" aria-hidden="true"></div>
         <div class="memory-field-panel__inner">
-          <div class="hud-title">Memory field</div>
-          <p class="memory-field-hint">[-1, 1]³ · drag orbit · scroll zoom</p>
-          <div id="memoryFieldCanvasHost" class="memory-field-canvas-wrap" role="img" aria-label="Three-dimensional memory graph"></div>
+          <div class="hud-title">Inner map</div>
+          <p class="memory-field-hint">Operator view · drag orbit · scroll zoom</p>
+          <div id="memoryFieldCanvasHost" class="memory-field-canvas-wrap" role="img" aria-label="Inner map visualization for the operator"></div>
           <p class="model-panel__status memory-field-viz-status" id="memoryFieldVizStatus"></p>
         </div>
       </div>
       <div
         class="spatial-field-panel left-stack-panel spatial-field-panel--idle"
         id="spatialFieldPanel"
-        aria-label="Last spatial encounter"
+        aria-label="Last encounter readout"
       >
         <span class="hud-bracket hud-bracket--tl" aria-hidden="true"></span>
         <span class="hud-bracket hud-bracket--tr" aria-hidden="true"></span>
@@ -829,12 +838,12 @@
         <span class="hud-bracket hud-bracket--br" aria-hidden="true"></span>
         <div class="hud-scanline" aria-hidden="true"></div>
         <div class="spatial-field-readout" aria-live="polite">
-          <div class="hud-title">Spatial field · Last encounter</div>
+          <div class="hud-title">Last encounter</div>
           <p class="spatial-field-idle-msg" id="sfIdle">Awaiting first response…</p>
           <div class="spatial-field-grid" id="sfGrid" hidden>
             <span class="spatial-field-k">Position</span>
             <span class="spatial-field-v" id="sfCoords">—</span>
-            <span class="spatial-field-k">Commitment</span>
+            <span class="spatial-field-k">Stance</span>
             <span class="spatial-field-v" id="sfCommitment">—</span>
             <span class="spatial-field-k">Confidence</span>
             <span class="spatial-field-v" id="sfConfidence">—</span>
@@ -856,7 +865,7 @@
     <div class="layout__main">
       <div class="chat-column-glow" aria-hidden="true"></div>
   <div class="app">
-    <div class="chat-area">
+    <div class="chat-area" id="chatArea">
       <div class="reactor-scene" aria-hidden="true">
         <canvas id="reactorCanvas"></canvas>
       </div>
@@ -947,7 +956,7 @@
           <div class="persona-panel__row">
             <button type="button" class="persona-btn persona-btn--primary" id="personaSave">Save to disk</button>
           </div>
-          <div class="persona-panel__subtitle">AI enhance</div>
+          <div class="persona-panel__subtitle">Expand persona</div>
           <label class="persona-check">
             <input type="checkbox" id="personaIncludeCurrent" checked />
             Use current file as context
@@ -968,7 +977,7 @@
               rows="10"
               readonly
               spellcheck="false"
-              aria-label="AI proposed persona text"
+              aria-label="Proposed persona text"
             ></textarea>
             <div class="persona-panel__row persona-panel__row--split">
               <button type="button" class="persona-btn" id="personaReplaceWithEnhanced">Replace editor</button>
@@ -1171,6 +1180,15 @@
     function fillMeta(metaEl, d) {
       if (!d || !metaEl) return;
       const rat = (d.rationale || "").slice(0, 220);
+      const cons = d.consolidation;
+      const consStr =
+        d.deep_remember && cons
+          ? " · weave b+" +
+            (cons.bridges_added ?? 0) +
+            " r+" +
+            (cons.reinforcements_added ?? 0) +
+            (cons.link_budget_hit ? " (budget)" : "")
+          : "";
       metaEl.textContent =
         "xyz=(" +
         d.x.toFixed(2) +
@@ -1185,6 +1203,7 @@
         " · conf " +
         d.confidence.toFixed(2) +
         (d.caution ? " · caution" : "") +
+        consStr +
         (rat ? " · " + rat + (d.rationale && d.rationale.length > 220 ? "…" : "") : "");
     }
 
@@ -1386,11 +1405,18 @@
       input.disabled = true;
       status.textContent = "Thinking…";
       status.classList.remove("error");
+      if (typeof window.__setReactorThinking === "function") window.__setReactorThinking(true);
       addUserBubble(text);
       input.value = "";
 
       let assistantBody = null;
       let metaEl = null;
+      let reactorSpunDown = false;
+      function spinDownReactor() {
+        if (reactorSpunDown) return;
+        reactorSpunDown = true;
+        if (typeof window.__setReactorThinking === "function") window.__setReactorThinking(false);
+      }
 
       try {
         const r = await fetch("/api/chat/stream", {
@@ -1439,6 +1465,7 @@
               });
               mergeSpatialEncounter(ev.data);
             } else if (ev.event === "token") {
+              spinDownReactor();
               if (!assistantBody) {
                 const el = createAssistantBubble();
                 assistantBody = el.body;
@@ -1449,6 +1476,7 @@
             } else if (ev.event === "error") {
               throw new Error(ev.detail || "stream error");
             } else if (ev.event === "done") {
+              spinDownReactor();
               if (!assistantBody) {
                 const el = createAssistantBubble();
                 assistantBody = el.body;
@@ -1470,7 +1498,9 @@
       } catch (e) {
         status.textContent = String(e.message || e);
         status.classList.add("error");
+        spinDownReactor();
       } finally {
+        if (typeof window.__setReactorThinking === "function") window.__setReactorThinking(false);
         busy = false;
         sendBtn.disabled = false;
         listenBtn.disabled = !recognition;
@@ -1525,6 +1555,14 @@
 
       const sparks = [];
       const bolts = [];
+      let thinking = false;
+      const chatAreaEl = document.getElementById("chatArea");
+      function setReactorThinking(v) {
+        thinking = !!v;
+        if (chatAreaEl) chatAreaEl.classList.toggle("reactor-thinking", thinking);
+      }
+      window.__setReactorThinking = setReactorThinking;
+
       const RING_COUNT = 2;
       /** Overall scale of the spinning reactor (1 = original). */
       const REACTOR_VISUAL_SCALE = 0.5;
@@ -1558,63 +1596,151 @@
         baseR = Math.min(w, h) * BASE_R_FRAC;
       }
 
-      function hexClipPath() {
-        const rot = t * 0.32;
-        const hr = baseR * 0.52;
-        ctx.beginPath();
-        for (let k = 0; k < 6; k += 1) {
-          const a = (k / 6) * Math.PI * 2 - Math.PI / 2 + rot;
-          const x = cx + Math.cos(a) * hr;
-          const y = cy + Math.sin(a) * hr;
-          if (k === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+      /** Jagged polyline between two points (lightning, not a straight line). */
+      function makeLightningPath(ax, ay, bx, by, segs, jitter) {
+        const pts = [{ x: ax, y: ay }];
+        const dx = bx - ax;
+        const dy = by - ay;
+        const len = Math.hypot(dx, dy) || 1;
+        const px = -dy / len;
+        const py = dx / len;
+        for (let s = 1; s < segs; s += 1) {
+          const f = s / segs;
+          const falloff = 1 - Math.abs(f - 0.5) * 0.45;
+          const off = (Math.random() - 0.5) * jitter * falloff * (0.65 + Math.random() * 0.7);
+          pts.push({
+            x: ax + dx * f + px * off,
+            y: ay + dy * f + py * off,
+          });
         }
-        ctx.closePath();
+        pts.push({ x: bx, y: by });
+        return pts;
+      }
+
+      /** Smallest t>0 where ray (px,py)+t*(vx,vy) hits the padded rectangle edge (from inside the pane). */
+      function rayRectExit(px, py, vx, vy, margin) {
+        const x0 = margin;
+        const x1 = w - margin;
+        const y0 = margin;
+        const y1 = h - margin;
+        const eps = 1e-9;
+        let best = Infinity;
+        if (vx > eps) best = Math.min(best, (x1 - px) / vx);
+        if (vx < -eps) best = Math.min(best, (x0 - px) / vx);
+        if (vy > eps) best = Math.min(best, (y1 - py) / vy);
+        if (vy < -eps) best = Math.min(best, (y0 - py) / vy);
+        if (!Number.isFinite(best) || best <= 0) {
+          const L = Math.max(w, h) * 0.55;
+          return { x: px + vx * L, y: py + vy * L };
+        }
+        return { x: px + vx * best, y: py + vy * best };
       }
 
       function regenBolts() {
         bolts.length = 0;
-        const hrHex = baseR * 0.52;
-        const maxR = hrHex * 0.86;
-        const minR = baseR * 0.1;
-        const n = 3 + Math.floor(Math.random() * 4);
-        for (let b = 0; b < n; b += 1) {
-          const a0 = Math.random() * Math.PI * 2;
-          const segs = 5 + Math.floor(Math.random() * 5);
-          const pts = [];
-          for (let s = 0; s <= segs; s += 1) {
-            const f = s / segs;
-            const a = a0 + (Math.random() - 0.5) * 0.65;
-            const rad = minR + f * (maxR - minR);
-            pts.push({
-              x: cx + Math.cos(a) * rad + (Math.random() - 0.5) * 5,
-              y: cy + Math.sin(a) * rad + (Math.random() - 0.5) * 5,
-            });
+        if (w < 16 || h < 16) return;
+        if (!thinking) {
+          const hrHex = baseR * 0.52;
+          const maxR = hrHex * 0.86;
+          const minR = baseR * 0.1;
+          const n = 3 + Math.floor(Math.random() * 4);
+          for (let b = 0; b < n; b += 1) {
+            const a0 = Math.random() * Math.PI * 2;
+            const segs = 5 + Math.floor(Math.random() * 5);
+            const pts = [];
+            for (let s = 0; s <= segs; s += 1) {
+              const f = s / segs;
+              const a = a0 + (Math.random() - 0.5) * 0.65;
+              const rad = minR + f * (maxR - minR);
+              pts.push({
+                x: cx + Math.cos(a) * rad + (Math.random() - 0.5) * 5,
+                y: cy + Math.sin(a) * rad + (Math.random() - 0.5) * 5,
+              });
+            }
+            bolts.push({ pts, life: 0.85 + Math.random() * 0.35, flicker: Math.random() * 10 });
           }
-          bolts.push({ pts, life: 0.85 + Math.random() * 0.35, flicker: Math.random() * 10 });
+          return;
+        }
+
+        const margin = 14;
+        const br = baseR || Math.min(w, h) * BASE_R_FRAC;
+        const ringOut = br * (0.88 + (RING_COUNT - 1) * 0.34);
+        const n = 14 + Math.floor(Math.random() * 12);
+        for (let b = 0; b < n; b += 1) {
+          const angS = Math.random() * Math.PI * 2;
+          const radS = ringOut * (0.28 + Math.random() * 0.72);
+          const ax = cx + Math.cos(angS) * radS;
+          const ay = cy + Math.sin(angS) * radS;
+          const angT = angS + (Math.random() - 0.5) * 2.4;
+          const vx = Math.cos(angT);
+          const vy = Math.sin(angT);
+          const hit = rayRectExit(ax, ay, vx, vy, margin);
+          const segs = 8 + Math.floor(Math.random() * 9);
+          const jitter = 18 + Math.random() * 34;
+          const pts = makeLightningPath(ax, ay, hit.x, hit.y, segs, jitter);
+          bolts.push({
+            pts,
+            life: 0.92 + Math.random() * 0.55,
+            flicker: Math.random() * 10,
+          });
+        }
+        const forkN = 4 + Math.floor(Math.random() * 4);
+        for (let f = 0; f < forkN; f += 1) {
+          const ang = (f / forkN) * Math.PI * 2 + Math.random() * 0.5;
+          const inner = br * (0.08 + Math.random() * 0.22);
+          const ax = cx + Math.cos(ang) * inner;
+          const ay = cy + Math.sin(ang) * inner;
+          const hit = rayRectExit(cx, cy, Math.cos(ang), Math.sin(ang), margin);
+          const midx = (ax + hit.x) * 0.5 + (Math.random() - 0.5) * 30;
+          const midy = (ay + hit.y) * 0.5 + (Math.random() - 0.5) * 30;
+          const p1 = makeLightningPath(ax, ay, midx, midy, 4 + Math.floor(Math.random() * 3), 14 + Math.random() * 18);
+          const p2 = makeLightningPath(midx, midy, hit.x, hit.y, 5 + Math.floor(Math.random() * 4), 16 + Math.random() * 22);
+          bolts.push({
+            pts: p1.slice(0, -1).concat(p2),
+            life: 0.88 + Math.random() * 0.45,
+            flicker: Math.random() * 10,
+          });
         }
       }
 
       function spawnSpark() {
         if (w < 8) return;
-        const theta = Math.random() * Math.PI * 2;
-        const speed = 0.65 + Math.random() * 2.2;
         const br = baseR || Math.min(w, h) * BASE_R_FRAC;
+        if (!thinking) {
+          const theta = Math.random() * Math.PI * 2;
+          const speed = 0.65 + Math.random() * 2.2;
+          sparks.push({
+            x: cx + Math.cos(theta) * br * 0.12,
+            y: cy + Math.sin(theta) * br * 0.12,
+            vx: Math.cos(theta) * speed + (Math.random() - 0.5) * 0.7,
+            vy: Math.sin(theta) * speed + (Math.random() - 0.5) * 0.7,
+            life: 1,
+            warm: Math.random() < 0.22,
+          });
+          return;
+        }
+        const ringOut = br * (0.88 + (RING_COUNT - 1) * 0.34);
+        const theta = Math.random() * Math.PI * 2;
+        const sx0 = cx + Math.cos(theta) * ringOut * (0.78 + Math.random() * 0.2);
+        const sy0 = cy + Math.sin(theta) * ringOut * (0.78 + Math.random() * 0.2);
+        const angV = Math.random() * Math.PI * 2;
+        const speed = 2.4 + Math.random() * 3.6;
         sparks.push({
-          x: cx + Math.cos(theta) * br * 0.12,
-          y: cy + Math.sin(theta) * br * 0.12,
-          vx: Math.cos(theta) * speed + (Math.random() - 0.5) * 0.7,
-          vy: Math.sin(theta) * speed + (Math.random() - 0.5) * 0.7,
+          x: sx0,
+          y: sy0,
+          vx: Math.cos(angV) * speed + (Math.random() - 0.5) * 1.1,
+          vy: Math.sin(angV) * speed + (Math.random() - 0.5) * 1.1,
           life: 1,
-          warm: Math.random() < 0.22,
+          warm: Math.random() < 0.38,
         });
       }
 
       function drawRings() {
+        const rotT = t * (thinking ? 2.05 : 1);
         for (let i = 0; i < RING_COUNT; i += 1) {
           const rad = baseR * (0.88 + i * 0.34);
           const dir = i % 2 === 0 ? 1 : -1;
-          const spin = t * (0.38 + i * 0.09) * dir + i * 0.85;
+          const spin = rotT * (0.38 + i * 0.09) * dir + i * 0.85;
 
           ctx.save();
           ctx.translate(cx, cy);
@@ -1634,7 +1760,7 @@
           ctx.stroke();
           ctx.setLineDash([]);
 
-          const arcStart = t * (0.6 + i * 0.1) + i;
+          const arcStart = rotT * (0.6 + i * 0.1) + i;
           ctx.strokeStyle = "rgba(253, 224, 71, " + (0.15 + Math.sin(t * 2 + i) * 0.08) + ")";
           ctx.lineWidth = 2;
           ctx.beginPath();
@@ -1644,8 +1770,8 @@
           for (let li = 0; li < lights.length; li += 1) {
             const L = lights[li];
             if (L.ring !== i) continue;
-            const blink = Math.sin(t * L.spd * 3.2 + L.phase);
-            const strobe = Math.sin(t * 19 + L.phase * 3);
+            const blink = Math.sin(t * L.spd * (thinking ? 5.1 : 3.2) + L.phase);
+            const strobe = Math.sin(t * (thinking ? 26 : 19) + L.phase * 3);
             const on = blink > 0.2 || strobe > 0.88;
             const lx = Math.cos(L.ang) * rad;
             const ly = Math.sin(L.ang) * rad;
@@ -1666,7 +1792,10 @@
       }
 
       function drawCoreGlow() {
-        const pulse = 0.86 + Math.sin(t * 2.9) * 0.11 + Math.sin(t * 5.8) * 0.04;
+        const pulse =
+          0.86 +
+          Math.sin(t * (thinking ? 4.5 : 2.9)) * 0.11 +
+          Math.sin(t * (thinking ? 9.2 : 5.8)) * 0.04;
         const r0 = baseR * 0.34 * pulse;
         const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r0 * 2.9);
         g.addColorStop(0, "rgba(255, 255, 255, 0.9)");
@@ -1690,7 +1819,7 @@
 
         ctx.save();
         ctx.translate(cx, cy);
-        ctx.rotate(t * 0.32);
+        ctx.rotate(t * (thinking ? 0.58 : 0.32));
         ctx.strokeStyle = "rgba(165, 243, 252, 0.5)";
         ctx.lineWidth = 1.15;
         const hr = baseR * 0.52;
@@ -1721,6 +1850,21 @@
         ctx.restore();
       }
 
+      function strokeBoltPath(bolt, style, lw, blur) {
+        ctx.strokeStyle = style;
+        ctx.lineWidth = lw;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.shadowColor = "#22d3ee";
+        ctx.shadowBlur = blur;
+        ctx.beginPath();
+        ctx.moveTo(bolt.pts[0].x, bolt.pts[0].y);
+        for (let p = 1; p < bolt.pts.length; p += 1) {
+          ctx.lineTo(bolt.pts[p].x, bolt.pts[p].y);
+        }
+        ctx.stroke();
+      }
+
       function drawBolts() {
         for (let b = 0; b < bolts.length; b += 1) {
           const bolt = bolts[b];
@@ -1728,25 +1872,31 @@
           const flick = 0.5 + Math.sin(t * 38 + bolt.flicker) * 0.35;
           ctx.save();
           ctx.globalAlpha = bolt.life * flick;
-          ctx.strokeStyle = "rgba(236, 254, 255, 0.92)";
-          ctx.lineWidth = 1.15;
-          ctx.shadowColor = "#22d3ee";
-          ctx.shadowBlur = 10;
-          ctx.beginPath();
-          ctx.moveTo(bolt.pts[0].x, bolt.pts[0].y);
-          for (let p = 1; p < bolt.pts.length; p += 1) {
-            ctx.lineTo(bolt.pts[p].x, bolt.pts[p].y);
+          if (thinking) {
+            strokeBoltPath(bolt, "rgba(6, 182, 212, " + (bolt.life * 0.55) + ")", 4.2, 18);
+            strokeBoltPath(bolt, "rgba(34, 211, 238, " + (bolt.life * 0.75) + ")", 2.2, 12);
+            strokeBoltPath(bolt, "rgba(236, 254, 255, " + (bolt.life * 0.95) + ")", 1.05, 6);
+            ctx.strokeStyle = "rgba(253, 224, 71, " + (bolt.life * 0.42) + ")";
+            ctx.lineWidth = 0.55;
+            ctx.shadowBlur = 3;
+            ctx.beginPath();
+            ctx.moveTo(bolt.pts[0].x, bolt.pts[0].y);
+            for (let p = 1; p < bolt.pts.length; p += 1) {
+              ctx.lineTo(bolt.pts[p].x, bolt.pts[p].y);
+            }
+            ctx.stroke();
+          } else {
+            strokeBoltPath(bolt, "rgba(236, 254, 255, 0.92)", 1.15, 10);
+            ctx.strokeStyle = "rgba(253, 224, 71, " + (bolt.life * 0.35) + ")";
+            ctx.lineWidth = 0.6;
+            ctx.shadowBlur = 4;
+            ctx.beginPath();
+            ctx.moveTo(bolt.pts[0].x, bolt.pts[0].y);
+            for (let p = 1; p < bolt.pts.length; p += 1) {
+              ctx.lineTo(bolt.pts[p].x, bolt.pts[p].y);
+            }
+            ctx.stroke();
           }
-          ctx.stroke();
-          ctx.strokeStyle = "rgba(253, 224, 71, " + (bolt.life * 0.35) + ")";
-          ctx.lineWidth = 0.6;
-          ctx.shadowBlur = 4;
-          ctx.beginPath();
-          ctx.moveTo(bolt.pts[0].x, bolt.pts[0].y);
-          for (let p = 1; p < bolt.pts.length; p += 1) {
-            ctx.lineTo(bolt.pts[p].x, bolt.pts[p].y);
-          }
-          ctx.stroke();
           ctx.restore();
         }
       }
@@ -1769,8 +1919,9 @@
         ctx.fillStyle = amb;
         ctx.fillRect(0, 0, w, h);
 
+        const boltDecay = thinking ? 0.032 : 0.055;
         for (let b = 0; b < bolts.length; b += 1) {
-          bolts[b].life -= 0.055;
+          bolts[b].life -= boltDecay;
         }
         if (bolts.length === 0 || bolts.every((x) => x.life <= 0)) {
           regenBolts();
@@ -1779,19 +1930,22 @@
         drawRings();
         drawCoreGlow();
 
-        ctx.save();
-        hexClipPath();
-        ctx.clip();
         drawBolts();
 
-        if (Math.random() < 0.45) spawnSpark();
+        const edge = 5;
+        const spawnChance = thinking ? 0.78 : 0.3;
+        if (Math.random() < spawnChance) spawnSpark();
+        if (thinking && Math.random() < 0.35) spawnSpark();
         for (let i = sparks.length - 1; i >= 0; i -= 1) {
           const s = sparks[i];
           s.x += s.vx;
           s.y += s.vy;
-          s.vx *= 0.97;
-          s.vy *= 0.97;
-          s.life -= 0.036;
+          s.vx *= thinking ? 0.985 : 0.97;
+          s.vy *= thinking ? 0.985 : 0.97;
+          s.life -= thinking ? 0.028 : 0.036;
+          if (s.x < edge || s.x > w - edge || s.y < edge || s.y > h - edge) {
+            s.life -= thinking ? 0.11 : 0.07;
+          }
           if (s.life <= 0) {
             sparks.splice(i, 1);
             continue;
@@ -1800,14 +1954,15 @@
           ctx.globalAlpha = s.life;
           ctx.fillStyle = s.warm ? "#fef9c3" : "#ecfeff";
           ctx.shadowColor = s.warm ? "#facc15" : "#22d3ee";
-          ctx.shadowBlur = 7;
+          ctx.shadowBlur = thinking ? 11 : 7;
+          const pr = (thinking ? 1.45 : 1.2) + s.life * (thinking ? 2.6 : 2);
           ctx.beginPath();
-          ctx.arc(s.x, s.y, 1.2 + s.life * 2, 0, Math.PI * 2);
+          ctx.arc(s.x, s.y, pr, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
         }
-        if (sparks.length > 80) sparks.splice(0, sparks.length - 80);
-        ctx.restore();
+        const maxSparks = thinking ? 160 : 88;
+        if (sparks.length > maxSparks) sparks.splice(0, sparks.length - maxSparks);
 
         drawCoreInner();
 

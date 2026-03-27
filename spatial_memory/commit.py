@@ -15,6 +15,11 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _memory_turn_text(raw_message: str, response_text: str) -> str:
+    """First-person dialogue record for storage; this text is re-shown to the model as 'earlier notes'."""
+    return f"They said:\n{raw_message.strip()}\n\nI said:\n{response_text.strip()}"
+
+
 def _dump_emb(vec: list[float]) -> str:
     return json.dumps(vec)
 
@@ -142,13 +147,7 @@ def commit_to_memory(
                 per_node_resonance,
                 db_path,
             )
-        merged = (
-            node.understanding.strip()
-            + "\n---\nUser message:\n"
-            + raw_message.strip()
-            + "\n\nAgent understanding:\n"
-            + response_text.strip()
-        )[:6000]
+        merged = (node.understanding.strip() + "\n---\n" + _memory_turn_text(raw_message, response_text))[:6000]
         node.understanding = merged
         node.original_text = raw_message
         node.embedding_json = _dump_emb(embed(merged[:8000]))
@@ -176,13 +175,7 @@ def commit_to_memory(
             # Active-scene mode: bridging still enriches one evolving scene memory.
             ctype = CommitmentType.DEEPENING
             node = forced_node
-            merged = (
-                node.understanding.strip()
-                + "\n---\nUser message:\n"
-                + raw_message.strip()
-                + "\n\nAgent understanding:\n"
-                + response_text.strip()
-            )[:6000]
+            merged = (node.understanding.strip() + "\n---\n" + _memory_turn_text(raw_message, response_text))[:6000]
             node.understanding = merged
             node.original_text = raw_message
             node.embedding_json = _dump_emb(embed(merged[:8000]))
@@ -254,9 +247,7 @@ def _found_new(
     db_path: str | None = None,
 ) -> MemoryNode:
     now = _now()
-    understanding = (
-        f"User message:\n{raw_message.strip()}\n\nAgent understanding (response summary):\n{response_text.strip()}"
-    )[:6000]
+    understanding = _memory_turn_text(raw_message, response_text)[:6000]
     vec = embed(understanding[:8000])
     resonance_max = max(per_node_resonance.values()) if per_node_resonance else 0.0
     cx, cy, cz = constrain_to_bean_space(x, y, z)

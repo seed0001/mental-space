@@ -2,6 +2,8 @@
 
 Local spatial-memory chat system powered by Ollama (`llama3.2`) with:
 
+**Documentation:** see the [`docs/`](./docs/) folder ([index](./docs/README.md)).
+
 - orientation-based memory routing (`self/other`, `known/unknown`, `active/contemplative`)
 - commitment decisions (`recognition`, `deepening`, `bridging`, `founding`)
 - persistent SQLite memory + graph links
@@ -66,7 +68,7 @@ Persona text is injected into response prompting (not orientation classification
 
 ## Visualization
 
-The right pane renders memory nodes and links in latent space:
+The **left** pane renders memory nodes and links in latent space (inner map):
 
 - node position = `(x,y,z)`
 - node color = commitment type

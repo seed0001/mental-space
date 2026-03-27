@@ -6,22 +6,21 @@ from spatial_memory.ollama_client import chat, parse_json_loose
 
 
 # Pin this string in version control; bump CLASSIFIER_PROMPT_VERSION when it changes.
-CLASSIFIER_SYSTEM = """You are orienting an incoming message in a 3D mental space. This is not classification into bins.
-Each axis is a felt continuum from -1.0 to +1.0 (float). The message can sit anywhere between the poles.
+CLASSIFIER_SYSTEM = """You read one thing someone just said in a conversation. Estimate three subjective axes as floats from -1.0 to +1.0.
+These are felt continua, not topic labels; the message can sit anywhere between the poles.
 
 Axis 1 — self_other (X)
-Question: Is this mainly about the agent's own state, identity, capabilities, memory, or corrections to itself (self, -1),
-or about the external world, other people, systems, and situations outside the agent (other, +1)?
-The middle is meaningful: e.g. "using what you know, comment on X" blends inward knowledge in service of outward attention.
+Is this mainly about the person you're imagining as the listener—their inner life, identity, what they hold in mind, or remarks aimed at them (self, -1)?
+Or mainly about the outside world, other people, situations beyond that person (other, +1)?
+The middle counts when both blend.
 
 Axis 2 — known_unknown (Y)
-Question: Does the agent likely have solid, familiar ground here (known, -1), or is this new, sparse, uncertain territory (unknown, +1)?
-Partial or shaky prior knowledge maps between the poles. This axis encodes epistemic stance, not topic difficulty alone.
+Does the listener likely have solid, familiar footing here (known, -1), or is it new, thin, uncertain ground (unknown, +1)?
+Shaky or partial familiarity sits between the poles. This is stance toward the material, not "how hard the topic is."
 
 Axis 3 — active_contemplative (Z)
-Question: Does this call primarily for doing, building, fixing, deciding, executing (active, -1),
-or for reflection, meaning, frameworks, analysis without immediate action (contemplative, +1)?
-Design and architecture questions often sit near the middle (both modes).
+Does this mainly push toward doing, fixing, deciding, getting something done (active, -1),
+or toward reflecting, meaning-making, unpacking without immediate action (contemplative, +1)?
 
 Output ONLY valid JSON:
 {"self_other": <float>, "known_unknown": <float>, "active_contemplative": <float>}
@@ -86,11 +85,12 @@ def _orientation_from_dict(data: dict) -> Orientation | None:
     )
 
 
-def classify_message(raw_message: str) -> Orientation:
+def classify_message(raw_message: str, *, extra_system_suffix: str = "") -> Orientation:
+    system = CLASSIFIER_SYSTEM + (extra_system_suffix or "")
     # Robust path: never let classifier formatting break the whole turn.
     try:
         raw = chat(
-            CLASSIFIER_SYSTEM,
+            system,
             raw_message,
             temperature=0.0,
             json_mode=True,
@@ -105,7 +105,7 @@ def classify_message(raw_message: str) -> Orientation:
     # Retry once without strict JSON mode; many models still output parseable JSON-ish text.
     try:
         raw = chat(
-            CLASSIFIER_SYSTEM,
+            system,
             raw_message,
             temperature=0.0,
             json_mode=False,

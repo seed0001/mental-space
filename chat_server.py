@@ -95,6 +95,8 @@ class ChatOut(BaseModel):
     caution: bool
     rule_id: str = ""
     rationale: str = ""
+    deep_remember: bool = False
+    consolidation: dict | None = None
 
 
 class TtsIn(BaseModel):
@@ -117,9 +119,9 @@ class PersonaEnhanceOut(BaseModel):
     enhanced: str
 
 
-_ENHANCE_SYSTEM = """You expand short directions into rich persona instructions for a local LLM that drives an in-character chat agent.
-Output ONLY the enhanced persona text (sections, bullets, or prose). No preamble, no "Here is", no markdown code fences.
-Keep the tone directive and behavioral. If the user asks for traits, make them concrete and actionable."""
+_ENHANCE_SYSTEM = """You expand short directions into rich persona text for someone who will speak in first person in chat—as a single believable human, not as software.
+Output ONLY the enhanced persona (sections, bullets, or prose). No preamble, no "Here is", no markdown code fences.
+Keep directions concrete and behavioral. If the user asks for traits, make them actionable on the page."""
 
 
 @app.get("/")
@@ -275,6 +277,8 @@ async def chat(body: ChatIn):
         caution=d.caution_internal_conflict,
         rule_id=d.rule_id,
         rationale=d.rationale,
+        deep_remember=out.deep_remember,
+        consolidation=out.consolidation,
     )
 
 
