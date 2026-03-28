@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from typing import Sequence
 
+from spatial_memory.math_util import latent_vector_dist_sq, memory_node_dist_sq
 from spatial_memory.models import CommitmentType, Decision, MemoryNode, NeighborhoodStats
 
 # Calibrated for embedding cosine on "understanding" fields (same model family as chat).
@@ -28,7 +29,7 @@ def _spatial_spread(nodes: Sequence[MemoryNode], per_node_res: dict[str, float])
     for i in range(len(active)):
         for j in range(i + 1, len(active)):
             a, b = active[i], active[j]
-            d = math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2)
+            d = math.sqrt(memory_node_dist_sq(a, b))
             best = max(best, d)
     return best
 
@@ -56,14 +57,17 @@ def _multi_region_resonance(
     if not (strong_half(A) and strong_half(B)):
         return False
 
-    def centroid(half: list[MemoryNode]) -> tuple[float, float, float]:
-        sx = sum(n.x for n in half) / len(half)
-        sy = sum(n.y for n in half) / len(half)
-        sz = sum(n.z for n in half) / len(half)
-        return sx, sy, sz
+    def centroid(half: list[MemoryNode]) -> tuple[float, float, float, float, float]:
+        n = len(half)
+        sx = sum(node.x for node in half) / n
+        sy = sum(node.y for node in half) / n
+        sz = sum(node.z for node in half) / n
+        sw = sum(node.w for node in half) / n
+        sv = sum(node.v for node in half) / n
+        return sx, sy, sz, sw, sv
 
     ca, cb = centroid(A), centroid(B)
-    dist = math.sqrt((ca[0] - cb[0]) ** 2 + (ca[1] - cb[1]) ** 2 + (ca[2] - cb[2]) ** 2)
+    dist = math.sqrt(latent_vector_dist_sq(*ca, *cb))
     return dist >= 0.22
 
 

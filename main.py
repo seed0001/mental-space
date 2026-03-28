@@ -62,9 +62,12 @@ def main() -> int:
             if not line:
                 return 0
             out = process_message(line, db_path=args.db)
-            print(f"\n[xyz]=({out.coordinate[0]:.2f},{out.coordinate[1]:.2f},{out.coordinate[2]:.2f}) "
-                  f"commit={out.commitment_type.value} conf={out.decision.confidence_level:.2f} "
-                  f"caution={out.decision.caution_internal_conflict}\n")
+            print(
+                f"\n[xyzwv]=({out.coordinate[0]:.2f},{out.coordinate[1]:.2f},{out.coordinate[2]:.2f},"
+                f"{out.coordinate[3]:.2f},{out.coordinate[4]:.2f}) "
+                f"commit={out.commitment_type.value} conf={out.decision.confidence_level:.2f} "
+                f"caution={out.decision.caution_internal_conflict}\n"
+            )
             print(out.response)
             print()
         return 0
@@ -74,8 +77,11 @@ def main() -> int:
         return 2
 
     out = process_message(args.message, db_path=args.db)
-    print(f"[xyz]=({out.coordinate[0]:.2f},{out.coordinate[1]:.2f},{out.coordinate[2]:.2f}) "
-          f"commit={out.commitment_type.value} conf={out.decision.confidence_level:.2f}")
+    print(
+        f"[xyzwv]=({out.coordinate[0]:.2f},{out.coordinate[1]:.2f},{out.coordinate[2]:.2f},"
+        f"{out.coordinate[3]:.2f},{out.coordinate[4]:.2f}) "
+        f"commit={out.commitment_type.value} conf={out.decision.confidence_level:.2f}"
+    )
     print(out.response)
     return 0
 

@@ -54,15 +54,17 @@ def inspect_region(
     y: float,
     z: float,
     initial_radius: float | None = None,
+    w: float = 0.0,
+    v: float = 0.0,
     db_path: str | None = None,
 ) -> NeighborhoodStats:
     """Arrive: adaptive radius (narrow → wider → widest) until the field is populated enough."""
     r0 = initial_radius if initial_radius is not None else INITIAL_RADIUS
-    pairs = store.nodes_within_radius(x, y, z, r0, db_path=db_path)
+    pairs = store.nodes_within_radius(x, y, z, r0, w=w, v=v, db_path=db_path)
     if len(pairs) < MIN_NODES_FOR_DENSE:
-        pairs = store.nodes_within_radius(x, y, z, RADIUS_EXPAND, db_path=db_path)
+        pairs = store.nodes_within_radius(x, y, z, RADIUS_EXPAND, w=w, v=v, db_path=db_path)
     if len(pairs) < MIN_NODES_FOR_DENSE:
-        pairs = store.nodes_within_radius(x, y, z, RADIUS_EXPAND_MAX, db_path=db_path)
+        pairs = store.nodes_within_radius(x, y, z, RADIUS_EXPAND_MAX, w=w, v=v, db_path=db_path)
 
     nodes = [p[0] for p in pairs]
     dist_sq = {n.id: d for n, d in pairs}

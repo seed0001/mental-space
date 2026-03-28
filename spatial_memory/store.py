@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Iterator
 
 from spatial_memory.config import DB_PATH
+from spatial_memory.math_util import latent_vector_dist_sq
 from spatial_memory.models import LinkType, MemoryLink, MemoryNode
 
 
@@ -160,10 +161,19 @@ def init_db(db_path: str | None = None) -> None:
             "orientation_prompt_version",
             "TEXT NOT NULL DEFAULT ''",
         )
+        for col, decl in (
+            ("w", "REAL NOT NULL DEFAULT 0"),
+            ("v", "REAL NOT NULL DEFAULT 0"),
+            ("abstract_concrete_score", "REAL NOT NULL DEFAULT 0"),
+            ("collaborative_autonomous_score", "REAL NOT NULL DEFAULT 0"),
+        ):
+            _ensure_column(conn, "memory_nodes", col, decl)
         conn.executescript(DDL_LINKS)
         conn.executescript(DDL_META)
         conn.executescript(DDL_SCENES)
         conn.executescript(DDL_SCENE_EVENTS)
+        for col, decl in (("w", "REAL NOT NULL DEFAULT 0"), ("v", "REAL NOT NULL DEFAULT 0")):
+            _ensure_column(conn, "scene_events", col, decl)
         _migrate_json_links_to_table(conn)
 
 
@@ -257,25 +267,32 @@ def nodes_within_radius(
     y: float,
     z: float,
     radius: float,
+    w: float = 0.0,
+    v: float = 0.0,
     db_path: str | None = None,
 ) -> list[tuple[MemoryNode, float]]:
-    """Bounding-box prefilter in SQL, exact sphere in Python."""
+    """Bounding-box prefilter in SQL, weighted 5D ball in Python."""
     r2 = radius * radius
     lo_x, hi_x = x - radius, x + radius
     lo_y, hi_y = y - radius, y + radius
     lo_z, hi_z = z - radius, z + radius
+    lo_w, hi_w = w - radius, w + radius
+    lo_v, hi_v = v - radius, v + radius
     with connect(db_path) as conn:
         cur = conn.execute(
             """SELECT * FROM memory_nodes
-               WHERE x BETWEEN ? AND ? AND y BETWEEN ? AND ? AND z BETWEEN ? AND ?""",
-            (lo_x, hi_x, lo_y, hi_y, lo_z, hi_z),
+               WHERE x BETWEEN ? AND ? AND y BETWEEN ? AND ? AND z BETWEEN ? AND ?
+                 AND w BETWEEN ? AND ? AND v BETWEEN ? AND ?""",
+            (lo_x, hi_x, lo_y, hi_y, lo_z, hi_z, lo_w, hi_w, lo_v, hi_v),
         )
         rows = cur.fetchall()
     out: list[tuple[MemoryNode, float]] = []
     for row in rows:
         d = dict(row)
         nx, ny, nz = float(d["x"]), float(d["y"]), float(d["z"])
-        dsq = (nx - x) ** 2 + (ny - y) ** 2 + (nz - z) ** 2
+        nw = float(d["w"]) if "w" in d else 0.0
+        nv = float(d["v"]) if "v" in d else 0.0
+        dsq = latent_vector_dist_sq(nx, ny, nz, nw, nv, x, y, z, w, v)
         if dsq <= r2:
             out.append((_row_to_node(row), dsq))
     out.sort(key=lambda t: t[1])
@@ -298,13 +315,13 @@ def new_id() -> str:
 
 def graph_snapshot(db_path: str | None = None) -> dict:
     """
-    Export nodes + links for 3D visualization.
-    Coordinates are continuous in [-1, 1].
+    Export nodes + links for visualization.
+    Latent coordinates x,y,z,w,v are in [-1, 1]; the WebGL view still plots (x,y,z) and maps w,v to size/emissive.
     """
     init_db(db_path)
     with connect(db_path) as conn:
         nrows = conn.execute(
-            """SELECT n.id, n.x, n.y, n.z, n.confidence, n.reinforcement_count, n.commitment_type,
+            """SELECT n.id, n.x, n.y, n.z, n.w, n.v, n.confidence, n.reinforcement_count, n.commitment_type,
                       n.contested, n.current_relevance, n.certainty, n.understanding,
                       COALESCE(s.id, '') AS scene_id,
                       COALESCE(s.state, 'closed') AS scene_state,
@@ -319,7 +336,7 @@ def graph_snapshot(db_path: str | None = None) -> dict:
                FROM memory_links"""
         ).fetchall()
         erows = conn.execute(
-            """SELECT scene_id, id, x, y, z
+            """SELECT scene_id, id, x, y, z, w, v
                FROM scene_events
                ORDER BY scene_id, id ASC"""
         ).fetchall()
@@ -329,6 +346,8 @@ def graph_snapshot(db_path: str | None = None) -> dict:
             "x": float(r["x"]),
             "y": float(r["y"]),
             "z": float(r["z"]),
+            "w": float(r["w"]) if "w" in r.keys() else 0.0,
+            "v": float(r["v"]) if "v" in r.keys() else 0.0,
             "confidence": float(r["confidence"]),
             "reinforcement_count": int(r["reinforcement_count"]),
             "commitment_type": r["commitment_type"],
@@ -363,6 +382,8 @@ def graph_snapshot(db_path: str | None = None) -> dict:
                 "x": float(r["x"]),
                 "y": float(r["y"]),
                 "z": float(r["z"]),
+                "w": float(r["w"]) if "w" in r.keys() else 0.0,
+                "v": float(r["v"]) if "v" in r.keys() else 0.0,
             }
         )
     return {"nodes": nodes, "links": links, "scene_trails": trails_by_scene}
@@ -436,17 +457,20 @@ def append_scene_event(
     x: float,
     y: float,
     z: float,
+    w: float = 0.0,
+    v: float = 0.0,
     commitment_type: str,
     confidence: float,
     caution: bool,
     db_path: str | None = None,
 ) -> None:
+    init_db(db_path)
     now = _utc_now()
     with connect(db_path) as conn:
         conn.execute(
             """INSERT INTO scene_events
-               (scene_id, created_at, user_message, assistant_response, x, y, z, commitment_type, confidence, caution)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (scene_id, created_at, user_message, assistant_response, x, y, z, w, v, commitment_type, confidence, caution)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 scene_id,
                 now,
@@ -455,6 +479,8 @@ def append_scene_event(
                 float(x),
                 float(y),
                 float(z),
+                float(w),
+                float(v),
                 commitment_type,
                 float(confidence),
                 1 if caution else 0,
@@ -476,12 +502,12 @@ def recent_scene_events(scene_id: str, *, limit: int = 10, db_path: str | None =
     return out
 
 
-def last_scene_event_xyz(scene_id: str, db_path: str | None = None) -> tuple[float, float, float] | None:
-    """Most recent (x,y,z) committed for this scene, or None if no events."""
+def last_scene_event_xyzwv(scene_id: str, db_path: str | None = None) -> tuple[float, float, float, float, float] | None:
+    """Most recent latent position for this scene, or None if no events."""
     init_db(db_path)
     with connect(db_path) as conn:
         row = conn.execute(
-            """SELECT x, y, z FROM scene_events
+            """SELECT x, y, z, w, v FROM scene_events
                WHERE scene_id = ?
                ORDER BY id DESC
                LIMIT 1""",
@@ -489,21 +515,42 @@ def last_scene_event_xyz(scene_id: str, db_path: str | None = None) -> tuple[flo
         ).fetchone()
     if not row:
         return None
-    return float(row["x"]), float(row["y"]), float(row["z"])
+    rw = float(row["w"]) if "w" in row.keys() else 0.0
+    rv = float(row["v"]) if "v" in row.keys() else 0.0
+    return float(row["x"]), float(row["y"]), float(row["z"]), rw, rv
 
 
-def last_global_scene_event_xyz(db_path: str | None = None) -> tuple[float, float, float] | None:
-    """Most recent (x,y,z) in any scene (by event id), or None."""
+def last_global_scene_event_xyzwv(
+    db_path: str | None = None,
+) -> tuple[float, float, float, float, float] | None:
+    """Most recent latent position in any scene (by event id), or None."""
     init_db(db_path)
     with connect(db_path) as conn:
         row = conn.execute(
-            """SELECT x, y, z FROM scene_events
+            """SELECT x, y, z, w, v FROM scene_events
                ORDER BY id DESC
                LIMIT 1"""
         ).fetchone()
     if not row:
         return None
-    return float(row["x"]), float(row["y"]), float(row["z"])
+    rw = float(row["w"]) if "w" in row.keys() else 0.0
+    rv = float(row["v"]) if "v" in row.keys() else 0.0
+    return float(row["x"]), float(row["y"]), float(row["z"]), rw, rv
+
+
+def last_scene_event_xyz(scene_id: str, db_path: str | None = None) -> tuple[float, float, float] | None:
+    """Backward-compatible slice of last_scene_event_xyzwv (x,y,z only)."""
+    p = last_scene_event_xyzwv(scene_id, db_path=db_path)
+    if p is None:
+        return None
+    return p[0], p[1], p[2]
+
+
+def last_global_scene_event_xyz(db_path: str | None = None) -> tuple[float, float, float] | None:
+    p = last_global_scene_event_xyzwv(db_path=db_path)
+    if p is None:
+        return None
+    return p[0], p[1], p[2]
 
 
 def get_scene_by_node_id(node_id: str, db_path: str | None = None) -> dict | None:

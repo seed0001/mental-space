@@ -6,13 +6,13 @@ This document explains **how memory is represented, retrieved, and updated** in 
 
 ## 1. Core idea
 
-The system treats each exchange as a **point in a continuous 3D latent space** (roughly `[-1, 1]` per axis), backed by a **SQLite graph** of **memory nodes** (with text + embeddings) and **typed links** between them.
+The system treats each exchange as a **point in a continuous 5D latent space** (roughly `[-1, 1]` per axis), backed by a **SQLite graph** of **memory nodes** (with text + embeddings) and **typed links** between them. The first three axes `(x, y, z)` use a **bean-shaped** bound; auxiliary axes `(w, v)` are **clamped to the cube** only. See `spatial_memory/axes.py` for the named axis spec.
 
 For each user message the pipeline:
 
-1. **Orients** the message in 3D (classifier).
-2. **Constrains** coordinates to a bounded “bean-shaped” volume.
-3. **Inspects** nearby nodes with an adaptive radius.
+1. **Orients** the message in 5D (classifier).
+2. **Constrains** `(x,y,z)` to the bean and `(w,v)` to `[-1,1]` (`constrain_orientation_full` in `space_shape.py`).
+3. **Inspects** nearby nodes with an adaptive radius (weighted distance in 5D; see `EXTRA_AXIS_DIST_WEIGHT` in `constants.py`).
 4. **Measures** local **density**, **coherence**, and message–node **resonance** (embeddings).
 5. **Decides** a **commitment type** (how “grounded” the turn is in prior memory).
 6. **Generates** a reply via Ollama, injecting selected memory text + optional **persona**.
@@ -23,17 +23,19 @@ The high-level sequence lives in `spatial_memory/pipeline.py` (`process_message`
 
 ---
 
-## 2. Orientation: mapping text to (x, y, z)
+## 2. Orientation: mapping text to (x, y, z, w, v)
 
-**Module:** `spatial_memory/classifier.py`
+**Module:** `spatial_memory/classifier.py` · **Axis reference:** `spatial_memory/axes.py`
 
-The classifier asks an LLM (via Ollama) to output **JSON with three floats in [-1, 1]**:
+The classifier asks an LLM (via Ollama) to output **JSON with five floats in [-1, 1]**:
 
 | Axis | Name | Intuition |
 |------|------|-----------|
 | **X** | `self_other` | Inward (self, identity, corrections to the agent) vs outward (world, others, external systems). |
 | **Y** | `known_unknown` | Familiar / grounded territory vs new / uncertain territory (epistemic stance). |
 | **Z** | `active_contemplative` | Doing / building / deciding vs reflecting / meaning / analysis. |
+| **W** | `abstract_concrete` | Abstract / categorical / symbolic vs concrete / sensory / specific. |
+| **V** | `collaborative_autonomous` | Collaborative / dialogic / “we” vs autonomous / self-contained / directive solo tone. |
 
 These are **not topic labels**; they are continuous coordinates. The prompt is versioned (`CLASSIFIER_PROMPT_VERSION` in `spatial_memory/constants.py`); bump that constant when you change the prompt.
 
@@ -41,13 +43,15 @@ If JSON parsing fails, the classifier falls back to a safe default orientation (
 
 ---
 
-## 3. Bean space: bounding the latent volume
+## 3. Bean space and auxiliary axes
 
 **Module:** `spatial_memory/space_shape.py`
 
-Raw classifier output is mapped into a **kidney-bean–like** region so memory does not spread arbitrarily across a full cube. Function `constrain_to_bean_space(x, y, z)` either returns the point unchanged if inside the bean, or **scales** it inward along the ray from the origin until it lies on the boundary.
+Raw classifier output for **(x, y, z)** is mapped into a **kidney-bean–like** region so memory does not spread arbitrarily across a full cube. Function `constrain_to_bean_space(x, y, z)` either returns the point unchanged if inside the bean, or **scales** it inward along the ray from the origin until it lies on the boundary.
 
-All **stored node coordinates** and **query positions** use this constrained triple. The 3D UI draws a **wireframe cube** for `[-1,1]³` as a visual reference; the **semantic** constraint is the bean, not the cube.
+**(w, v)** are not warped by the bean; `clamp_axis` keeps them in `[-1, 1]`. Use `constrain_orientation_full` for the full five coordinates before neighborhood search and persistence.
+
+The 3D UI draws a **wireframe cube** for `[-1,1]³` as a visual reference; **w** and **v** are surfaced in the API / HUD and (in the Web client) as **node scale** and **emissive** cues, not as extra spatial dimensions in Three.js.
 
 ---
 
@@ -56,7 +60,7 @@ All **stored node coordinates** and **query positions** use this constrained tri
 **Module:** `spatial_memory/inspector.py`  
 **Persistence:** `spatial_memory/store.py` (`nodes_within_radius`, etc.)
 
-Given `(x, y, z)`, the system loads nodes within a **sphere** whose radius **adapts**:
+Given query position `(x, y, z, w, v)`, the system loads nodes within a **weighted 5D ball** (bounding-box prefilter in SQL, exact check in Python) whose radius **adapts**:
 
 - Start with `INITIAL_RADIUS` (config).
 - If fewer than `MIN_NODES_FOR_DENSE` nodes are found, expand to `RADIUS_EXPAND`, then `RADIUS_EXPAND_MAX`.
@@ -241,6 +245,6 @@ These layers sit on top of the core pipeline above:
 | Topic | Module(s) | Doc |
 |-------|-----------|-----|
 | **Deep remember** — trigger phrases, graph weave, full-field digest | `deep_remember.py`, `pipeline.py` | [FEATURES_AND_EXPERIENCE.md](./FEATURES_AND_EXPERIENCE.md) |
-| **Orientation momentum** — blend with prior xyz, classifier scene trail | `orientation_context.py`, `pipeline.py`, `classifier.py` | [FEATURES_AND_EXPERIENCE.md](./FEATURES_AND_EXPERIENCE.md) |
+| **Orientation momentum** — blend with prior xyzwv, classifier scene trail | `orientation_context.py`, `pipeline.py`, `classifier.py` | [FEATURES_AND_EXPERIENCE.md](./FEATURES_AND_EXPERIENCE.md) |
 | **Responder / memory phrasing** — simulated-human system prompt | `responder.py`, `commit.py` | [FEATURES_AND_EXPERIENCE.md](./FEATURES_AND_EXPERIENCE.md) |
 | **Browser HUD, reactor, stream** | `static/index.html` | [UI_AND_VISUALIZATION.md](./UI_AND_VISUALIZATION.md) |

@@ -28,3 +28,19 @@ def constrain_to_bean_space(x: float, y: float, z: float) -> tuple[float, float,
     s = lo
     return (x * s, y * s, z * s)
 
+
+def clamp_axis(v: float, lo: float = -1.0, hi: float = 1.0) -> float:
+    return max(lo, min(hi, v))
+
+
+def constrain_orientation_full(
+    x: float,
+    y: float,
+    z: float,
+    w: float,
+    v: float,
+) -> tuple[float, float, float, float, float]:
+    """Bean (x,y,z) plus independent clamp for auxiliary axes (w,v)."""
+    cx, cy, cz = constrain_to_bean_space(x, y, z)
+    return (cx, cy, cz, clamp_axis(w), clamp_axis(v))
+

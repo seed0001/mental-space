@@ -15,14 +15,14 @@ import re
 from dataclasses import dataclass
 
 from spatial_memory.commit import _add_or_strengthen_link
-from spatial_memory.math_util import cosine_similarity
+from spatial_memory.math_util import cosine_similarity, memory_node_dist_sq
 from spatial_memory.models import LinkType, MemoryNode
 from spatial_memory.ollama_client import embed
 from spatial_memory import store
 
 # Pairwise similarity floor for weaving (embedding space).
 PAIR_SIM_MIN = float(os.environ.get("DEEP_REMEMBER_SIM_MIN", "0.38"))
-# Squared Euclidean distance in [-1,1]³; above this, similar nodes get BRIDGE; below, REINFORCEMENT.
+# Squared weighted latent distance (xyz + auxiliary w,v); above this, similar nodes get BRIDGE.
 SPATIAL_DIST_SQ_BRIDGE = float(os.environ.get("DEEP_REMEMBER_BRIDGE_DIST_SQ", "0.22"))
 MAX_LINKS_PER_PASS = int(os.environ.get("DEEP_REMEMBER_MAX_LINKS", "72"))
 MAX_NODES_FOR_SCAN = int(os.environ.get("DEEP_REMEMBER_MAX_NODES", "240"))
@@ -104,8 +104,7 @@ def _has_tension_link(a: MemoryNode, b: MemoryNode) -> bool:
 
 
 def _spatial_dist_sq(a: MemoryNode, b: MemoryNode) -> float:
-    dx, dy, dz = a.x - b.x, a.y - b.y, a.z - b.z
-    return dx * dx + dy * dy + dz * dz
+    return memory_node_dist_sq(a, b)
 
 
 @dataclass

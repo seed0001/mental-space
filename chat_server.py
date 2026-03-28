@@ -22,7 +22,7 @@ if not os.environ.get("SPATIAL_MEMORY_PROJECT_ROOT", "").strip():
 import edge_tts
 import httpx
 import psutil
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
@@ -30,7 +30,8 @@ from pydantic import BaseModel, Field, field_validator
 from spatial_memory.config import LLAMA_MODEL, OLLAMA_BASE_URL
 from spatial_memory.inference_options import ResponseInferenceOptions
 from spatial_memory.ollama_client import chat as ollama_chat
-from spatial_memory.persona import persona_path
+from spatial_memory.inner_trm import iter_inner_trm_ndjson
+from spatial_memory.persona import inner_persona_path, persona_path
 from spatial_memory.pipeline import process_message, process_message_stream
 from spatial_memory import store
 
@@ -90,6 +91,8 @@ class ChatOut(BaseModel):
     x: float
     y: float
     z: float
+    w: float = 0.0
+    v: float = 0.0
     commitment: str
     confidence: float
     caution: bool
@@ -104,6 +107,10 @@ class TtsIn(BaseModel):
 
 
 class PersonaPut(BaseModel):
+    content: str = Field(default="", max_length=120_000)
+
+
+class InnerPersonaPut(BaseModel):
     content: str = Field(default="", max_length=120_000)
 
 
@@ -214,6 +221,49 @@ def put_persona(body: PersonaPut):
     return {"ok": True, "path": str(path)}
 
 
+@app.get("/api/inner-persona")
+def get_inner_persona():
+    path = inner_persona_path().resolve()
+    exists = path.is_file()
+    raw = ""
+    if exists:
+        try:
+            raw = path.read_text(encoding="utf-8-sig", errors="ignore")
+        except OSError as e:
+            raise HTTPException(502, f"read inner persona failed: {e!s}") from e
+    return {
+        "content": raw,
+        "path": str(path),
+        "exists": exists,
+    }
+
+
+@app.put("/api/inner-persona")
+def put_inner_persona(body: InnerPersonaPut):
+    path = inner_persona_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body.content, encoding="utf-8", newline="\n")
+    except OSError as e:
+        raise HTTPException(502, f"write inner persona failed: {e!s}") from e
+    return {"ok": True, "path": str(path)}
+
+
+@app.post("/api/inner/trm/stream")
+def inner_trm_stream(steps: int = Query(3, ge=1, le=10, description="Recursive inner passes")):
+    """NDJSON stream: step, token, step_end, done, error. For idle emotional background thinking."""
+    db = os.environ.get("SPATIAL_MEMORY_DB")
+
+    def gen():
+        try:
+            for line in iter_inner_trm_ndjson(db_path=db, steps=steps):
+                yield line
+        except Exception as e:
+            yield json.dumps({"event": "error", "detail": str(e)}, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(gen(), media_type="application/x-ndjson")
+
+
 @app.post("/api/persona/enhance", response_model=PersonaEnhanceOut)
 def enhance_persona(body: PersonaEnhanceIn):
     current = ""
@@ -272,6 +322,8 @@ async def chat(body: ChatIn):
         x=out.coordinate[0],
         y=out.coordinate[1],
         z=out.coordinate[2],
+        w=out.coordinate[3],
+        v=out.coordinate[4],
         commitment=out.commitment_type.value,
         confidence=d.confidence_level,
         caution=d.caution_internal_conflict,

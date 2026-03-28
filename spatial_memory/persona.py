@@ -27,6 +27,18 @@ def persona_path() -> Path:
     return (root / "persona.txt").resolve()
 
 
+def inner_persona_path() -> Path:
+    """Private emotional / inner-monologue layer (idle TRM). Default: inner_persona.txt next to persona."""
+    raw = os.environ.get("INNER_PERSONA_FILE", "").strip()
+    root = _project_root()
+    if raw:
+        p = Path(raw).expanduser()
+        if not p.is_absolute():
+            p = (root / p).resolve()
+        return p
+    return (root / "inner_persona.txt").resolve()
+
+
 def _strip_hash_comments(text: str) -> str:
     """Drop full lines that start with # so you can annotate the file."""
     out: list[str] = []
@@ -39,6 +51,14 @@ def _strip_hash_comments(text: str) -> str:
 
 def load_persona() -> str:
     path = persona_path()
+    if not path.is_file():
+        return ""
+    raw = path.read_text(encoding="utf-8-sig", errors="ignore")
+    return _strip_hash_comments(raw)
+
+
+def load_inner_persona() -> str:
+    path = inner_persona_path()
     if not path.is_file():
         return ""
     raw = path.read_text(encoding="utf-8-sig", errors="ignore")

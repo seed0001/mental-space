@@ -6,7 +6,7 @@ from spatial_memory.ollama_client import chat, parse_json_loose
 
 
 # Pin this string in version control; bump CLASSIFIER_PROMPT_VERSION when it changes.
-CLASSIFIER_SYSTEM = """You read one thing someone just said in a conversation. Estimate three subjective axes as floats from -1.0 to +1.0.
+CLASSIFIER_SYSTEM = """You read one thing someone just said in a conversation. Estimate five subjective axes as floats from -1.0 to +1.0.
 These are felt continua, not topic labels; the message can sit anywhere between the poles.
 
 Axis 1 — self_other (X)
@@ -22,8 +22,16 @@ Axis 3 — active_contemplative (Z)
 Does this mainly push toward doing, fixing, deciding, getting something done (active, -1),
 or toward reflecting, meaning-making, unpacking without immediate action (contemplative, +1)?
 
+Axis 4 — abstract_concrete (W)
+Is the stance more abstract, categorical, or symbolic (abstract, -1),
+or more concrete, sensory, or anchored in specific things and examples (concrete, +1)?
+
+Axis 5 — collaborative_autonomous (V)
+Does it invite co-thinking, dialogue, or explicit "we" work (collaborative, -1),
+or read as self-contained, directive, or solo monologue tone (autonomous, +1)?
+
 Output ONLY valid JSON:
-{"self_other": <float>, "known_unknown": <float>, "active_contemplative": <float>}
+{"self_other": <float>, "known_unknown": <float>, "active_contemplative": <float>, "abstract_concrete": <float>, "collaborative_autonomous": <float>}
 Each number must be in [-1, 1]."""
 
 
@@ -77,10 +85,34 @@ def _orientation_from_dict(data: dict) -> Orientation | None:
     )
     if sx is None or sy is None or sz is None:
         return None
+    sw = _pick_num(
+        data,
+        [
+            "abstract_concrete",
+            "abstractConcrete",
+            "abstract-concrete",
+            "w",
+            "w_axis",
+            "abstract_concrete_score",
+        ],
+    )
+    sv = _pick_num(
+        data,
+        [
+            "collaborative_autonomous",
+            "collaborativeAutonomous",
+            "collaborative-autonomous",
+            "v",
+            "v_axis",
+            "collaborative_autonomous_score",
+        ],
+    )
     return Orientation(
         self_other=clamp(sx),
         known_unknown=clamp(sy),
         active_contemplative=clamp(sz),
+        abstract_concrete=clamp(sw if sw is not None else 0.0),
+        collaborative_autonomous=clamp(sv if sv is not None else 0.0),
         classifier_prompt_version=CLASSIFIER_PROMPT_VERSION,
     )
 
@@ -122,6 +154,8 @@ def classify_message(raw_message: str, *, extra_system_suffix: str = "") -> Orie
         self_other=0.0,
         known_unknown=0.0,
         active_contemplative=0.0,
+        abstract_concrete=0.0,
+        collaborative_autonomous=0.0,
         classifier_prompt_version=CLASSIFIER_PROMPT_VERSION,
     )
 

@@ -7,7 +7,7 @@ from typing import Sequence
 from spatial_memory.math_util import cosine_similarity
 from spatial_memory.models import CommitmentType, Decision, LinkType, MemoryLink, MemoryNode, Orientation, SourceType
 from spatial_memory.ollama_client import embed
-from spatial_memory.space_shape import constrain_to_bean_space
+from spatial_memory.space_shape import constrain_orientation_full
 from spatial_memory import store
 
 
@@ -91,6 +91,8 @@ def commit_to_memory(
     x: float,
     y: float,
     z: float,
+    w: float,
+    v: float,
     orientation: Orientation,
     decision: Decision,
     neighborhood: Sequence[MemoryNode],
@@ -119,6 +121,8 @@ def commit_to_memory(
                 x,
                 y,
                 z,
+                w,
+                v,
                 orientation,
                 decision,
                 per_node_resonance,
@@ -142,6 +146,8 @@ def commit_to_memory(
                 x,
                 y,
                 z,
+                w,
+                v,
                 orientation,
                 decision,
                 per_node_resonance,
@@ -158,14 +164,18 @@ def commit_to_memory(
         node.commitment_type = CommitmentType.DEEPENING
         # Scene dynamics: center of mass shifts as the scene evolves.
         blend = 0.28
-        node.x, node.y, node.z = constrain_to_bean_space(
+        node.x, node.y, node.z, node.w, node.v = constrain_orientation_full(
             node.x * (1.0 - blend) + x * blend,
             node.y * (1.0 - blend) + y * blend,
             node.z * (1.0 - blend) + z * blend,
+            node.w * (1.0 - blend) + w * blend,
+            node.v * (1.0 - blend) + v * blend,
         )
         node.self_other_score = orientation.self_other
         node.known_unknown_score = orientation.known_unknown
         node.active_contemplative_score = orientation.active_contemplative
+        node.abstract_concrete_score = orientation.abstract_concrete
+        node.collaborative_autonomous_score = orientation.collaborative_autonomous
         node.orientation_prompt_version = orientation.classifier_prompt_version or node.orientation_prompt_version
         store.update_node(node, db_path=db_path)
         return node
@@ -185,14 +195,18 @@ def commit_to_memory(
             node.current_relevance = min(1.0, node.current_relevance + 0.12)
             node.commitment_type = CommitmentType.DEEPENING
             blend = 0.28
-            node.x, node.y, node.z = constrain_to_bean_space(
+            node.x, node.y, node.z, node.w, node.v = constrain_orientation_full(
                 node.x * (1.0 - blend) + x * blend,
                 node.y * (1.0 - blend) + y * blend,
                 node.z * (1.0 - blend) + z * blend,
+                node.w * (1.0 - blend) + w * blend,
+                node.v * (1.0 - blend) + v * blend,
             )
             node.self_other_score = orientation.self_other
             node.known_unknown_score = orientation.known_unknown
             node.active_contemplative_score = orientation.active_contemplative
+            node.abstract_concrete_score = orientation.abstract_concrete
+            node.collaborative_autonomous_score = orientation.collaborative_autonomous
             node.orientation_prompt_version = orientation.classifier_prompt_version or node.orientation_prompt_version
             store.update_node(node, db_path=db_path)
             return node
@@ -205,6 +219,8 @@ def commit_to_memory(
                 x,
                 y,
                 z,
+                w,
+                v,
                 orientation,
                 decision,
                 per_node_resonance,
@@ -228,6 +244,8 @@ def commit_to_memory(
         x,
         y,
         z,
+        w,
+        v,
         orientation,
         decision,
         per_node_resonance,
@@ -241,6 +259,8 @@ def _found_new(
     x: float,
     y: float,
     z: float,
+    w: float,
+    v: float,
     orientation: Orientation,
     decision: Decision,
     per_node_resonance: dict[str, float],
@@ -250,7 +270,7 @@ def _found_new(
     understanding = _memory_turn_text(raw_message, response_text)[:6000]
     vec = embed(understanding[:8000])
     resonance_max = max(per_node_resonance.values()) if per_node_resonance else 0.0
-    cx, cy, cz = constrain_to_bean_space(x, y, z)
+    cx, cy, cz, cw, cv = constrain_orientation_full(x, y, z, w, v)
     node = MemoryNode(
         id=store.new_id(),
         original_text=raw_message,
@@ -258,9 +278,13 @@ def _found_new(
         x=cx,
         y=cy,
         z=cz,
+        w=cw,
+        v=cv,
         self_other_score=orientation.self_other,
         known_unknown_score=orientation.known_unknown,
         active_contemplative_score=orientation.active_contemplative,
+        abstract_concrete_score=orientation.abstract_concrete,
+        collaborative_autonomous_score=orientation.collaborative_autonomous,
         commitment_type=CommitmentType.FOUNDING,
         confidence=max(0.12, decision.confidence_level * 0.85),
         reinforcement_count=1,

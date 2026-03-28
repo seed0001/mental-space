@@ -24,12 +24,12 @@ from spatial_memory.models import CommitmentType, Decision, Orientation
 from spatial_memory.inference_options import ResponseInferenceOptions
 from spatial_memory.responder import generate_response, generate_response_stream
 from spatial_memory.orientation_context import (
-    blend_with_previous,
+    blend_latent_with_previous,
     classifier_scene_trail_suffix,
-    previous_xyz_for_momentum,
+    previous_xyzwv_for_momentum,
 )
 from spatial_memory.scene import resolve_active_scene
-from spatial_memory.space_shape import constrain_to_bean_space
+from spatial_memory.space_shape import constrain_orientation_full
 from spatial_memory import store
 
 
@@ -39,7 +39,7 @@ class PipelineResult:
     orientation: Orientation
     commitment_type: CommitmentType
     decision: Decision
-    coordinate: tuple[float, float, float]
+    coordinate: tuple[float, float, float, float, float]
     deep_remember: bool = False
     consolidation: dict | None = None
 
@@ -84,7 +84,7 @@ def _prepare_turn(raw_message: str, db_path: str | None = None):
     active_sid = str(active["id"]) if active else None
 
     trail_suffix = ""
-    prev_xyz = None
+    prev5: tuple[float, float, float, float, float] | None = None
     if not deep:
         if ORIENTATION_CLASSIFIER_SCENE_TRAIL and active_sid:
             trail_suffix = classifier_scene_trail_suffix(
@@ -93,23 +93,29 @@ def _prepare_turn(raw_message: str, db_path: str | None = None):
                 db_path=db_path,
             )
         if ORIENTATION_MOMENTUM_PREV_WEIGHT > 0:
-            prev_xyz = previous_xyz_for_momentum(
+            prev5 = previous_xyzwv_for_momentum(
                 scope=ORIENTATION_MOMENTUM_SCOPE,
                 active_scene_id=active_sid,
                 db_path=db_path,
             )
 
     orientation = classify_message(raw_message, extra_system_suffix=trail_suffix)
-    sx, sy, sz = orientation.as_tuple()
-    bx, by, bz = blend_with_previous(sx, sy, sz, prev_xyz, ORIENTATION_MOMENTUM_PREV_WEIGHT)
+    blended = blend_latent_with_previous(
+        orientation.as_xyzwv(),
+        prev5,
+        ORIENTATION_MOMENTUM_PREV_WEIGHT,
+    )
+    bx, by, bz, bw, bv = blended
     orientation = Orientation(
         self_other=bx,
         known_unknown=by,
         active_contemplative=bz,
+        abstract_concrete=bw,
+        collaborative_autonomous=bv,
         classifier_prompt_version=orientation.classifier_prompt_version,
     )
-    x, y, z = constrain_to_bean_space(bx, by, bz)
-    neighborhood = inspect_region(x, y, z, db_path=db_path)
+    x, y, z, w, v = constrain_orientation_full(bx, by, bz, bw, bv)
+    neighborhood = inspect_region(x, y, z, w=w, v=v, db_path=db_path)
     if scene_resolution.should_merge and scene_resolution.node_id:
         active_node = store.get_node(scene_resolution.node_id, db_path=db_path)
         if active_node:
@@ -149,7 +155,7 @@ def _prepare_turn(raw_message: str, db_path: str | None = None):
         )
     elif scene_snippets:
         decision.memory_to_inject = scene_snippets + decision.memory_to_inject[:2]
-    return orientation, (x, y, z), neighborhood, decision, per_res, msg_vec, scene_resolution, deep, weave
+    return orientation, (x, y, z, w, v), neighborhood, decision, per_res, msg_vec, scene_resolution, deep, weave
 
 
 def process_message(
@@ -164,7 +170,7 @@ def process_message(
     orientation, coord, neighborhood, decision, per_res, _msg_vec, scene_resolution, deep, weave = _prepare_turn(
         raw_message, db_path
     )
-    x, y, z = coord
+    x, y, z, w, v = coord
     response = generate_response(
         raw_message,
         decision.memory_to_inject,
@@ -180,6 +186,8 @@ def process_message(
         x,
         y,
         z,
+        w,
+        v,
         orientation,
         decision,
         neighborhood.nodes,
@@ -206,6 +214,8 @@ def process_message(
             x=primary.x,
             y=primary.y,
             z=primary.z,
+            w=primary.w,
+            v=primary.v,
             commitment_type=decision.commitment_type.value,
             confidence=decision.confidence_level,
             caution=decision.caution_internal_conflict,
@@ -239,11 +249,13 @@ def process_message_stream(
     orientation, coord, neighborhood, decision, per_res, _msg_vec, scene_resolution, deep, weave = _prepare_turn(
         raw_message, db_path
     )
-    x, y, z = coord
+    x, y, z, w, v = coord
     meta: dict = {
         "x": x,
         "y": y,
         "z": z,
+        "w": w,
+        "v": v,
         "commitment": decision.commitment_type.value,
         "confidence": decision.confidence_level,
         "caution": decision.caution_internal_conflict,
@@ -276,6 +288,8 @@ def process_message_stream(
         x,
         y,
         z,
+        w,
+        v,
         orientation,
         decision,
         neighborhood.nodes,
@@ -302,6 +316,8 @@ def process_message_stream(
             x=primary.x,
             y=primary.y,
             z=primary.z,
+            w=primary.w,
+            v=primary.v,
             commitment_type=decision.commitment_type.value,
             confidence=decision.confidence_level,
             caution=decision.caution_internal_conflict,
@@ -319,6 +335,8 @@ def process_message_stream(
         "x": x,
         "y": y,
         "z": z,
+        "w": w,
+        "v": v,
         "commitment": decision.commitment_type.value,
         "confidence": decision.confidence_level,
         "caution": decision.caution_internal_conflict,

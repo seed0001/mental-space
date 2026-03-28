@@ -509,6 +509,63 @@
       color: rgba(148, 200, 220, 0.5);
       word-break: break-all;
     }
+    .persona-panel__subtitle--inner {
+      margin-top: 1rem;
+      color: rgba(216, 180, 254, 0.75);
+    }
+    .inner-stream-layer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      max-height: 44vh;
+      z-index: 140;
+      display: flex;
+      flex-direction: column;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.38s ease;
+    }
+    .inner-stream-layer.inner-stream-layer--active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .inner-stream-layer__bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      padding: 0.45rem 0.85rem;
+      background: rgba(35, 12, 48, 0.92);
+      border-top: 1px solid rgba(196, 181, 253, 0.38);
+      box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.45);
+    }
+    .inner-stream-layer__title {
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(233, 213, 255, 0.9);
+    }
+    .inner-stream-layer__hint {
+      font-size: 0.58rem;
+      color: rgba(196, 181, 253, 0.55);
+      max-width: 22rem;
+      text-align: right;
+    }
+    .inner-stream-layer__body {
+      flex: 1;
+      min-height: 5rem;
+      max-height: 36vh;
+      overflow-y: auto;
+      padding: 0.7rem 0.95rem 1.1rem;
+      font-size: 0.875rem;
+      line-height: 1.58;
+      color: rgba(250, 235, 255, 0.92);
+      background: linear-gradient(185deg, rgba(18, 6, 28, 0.96) 0%, rgba(6, 2, 12, 0.98) 100%);
+      white-space: pre-wrap;
+      font-family: Georgia, "Times New Roman", serif;
+    }
     .model-panel__inner {
       position: relative;
       z-index: 2;
@@ -609,6 +666,8 @@
       flex: 1;
       min-height: 0;
       position: relative;
+      display: flex;
+      flex-direction: column;
     }
     .chat-area.reactor-thinking .chat-column-glow {
       animation-duration: 1.15s;
@@ -630,10 +689,30 @@
       width: 100%;
       height: 100%;
     }
+    .microbe-scene {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+    #microbeCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .chat-log-shell {
+      position: relative;
+      z-index: 2;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
     #log {
       position: relative;
       z-index: 1;
-      height: 100%;
+      flex: 1;
+      min-height: 0;
       overflow-y: auto;
       padding: 1rem 1rem 0.5rem;
       display: flex;
@@ -641,7 +720,96 @@
       gap: 0.75rem;
       background: transparent;
     }
+    .ether-dissolve-canvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 6;
+      pointer-events: none;
+      opacity: 0;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      transition: opacity 0.2s ease-out;
+    }
+    .chat-log-shell--dissolving .ether-dissolve-canvas {
+      opacity: 1;
+    }
+    .chat-log-shell--dissolving #log {
+      pointer-events: none;
+    }
+    @keyframes pixelScan {
+      0% {
+        background-position: 0 0, 0 0;
+        opacity: 0.45;
+      }
+      100% {
+        background-position: 8px 4px, -6px 3px;
+        opacity: 0.85;
+      }
+    }
+    @keyframes bubbleEtherDissolve {
+      0% {
+        opacity: 1;
+        filter: blur(0) contrast(1) brightness(1);
+        transform: scale(1) translateY(0);
+        clip-path: inset(0 0 0 0 round 12px);
+      }
+      22% {
+        opacity: 0.92;
+        filter: blur(0.35px) contrast(1.18) brightness(1.06);
+        transform: scale(0.997) translateY(-1px);
+      }
+      55% {
+        opacity: 0.55;
+        filter: blur(1.4px) contrast(1.45) brightness(1.22);
+        clip-path: inset(4% 6% 8% 5% round 10px);
+      }
+      82% {
+        opacity: 0.18;
+        filter: blur(3px) contrast(1.85) brightness(1.45);
+        transform: scale(0.96) translateY(-8px);
+        clip-path: inset(22% 24% 28% 20% round 6px);
+      }
+      100% {
+        opacity: 0;
+        filter: blur(6px) contrast(2.1) brightness(1.85);
+        transform: scale(0.9) translateY(-18px);
+        clip-path: inset(42% 42% 42% 42% round 2px);
+      }
+    }
+    .chat-log-shell--dissolving .bubble {
+      position: relative;
+      animation: bubbleEtherDissolve var(--ether-dissolve-dur, 6.8s) steps(28, end) forwards;
+    }
+    .chat-log-shell--dissolving .bubble::after {
+      content: "";
+      position: absolute;
+      inset: -3px;
+      border-radius: inherit;
+      pointer-events: none;
+      background-image:
+        repeating-linear-gradient(
+          0deg,
+          transparent 0,
+          transparent 2px,
+          rgba(34, 211, 238, 0.14) 2px 3px,
+          transparent 3px 5px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          rgba(0, 0, 0, 0.2) 0,
+          rgba(0, 0, 0, 0.2) 1px,
+          transparent 1px 4px
+        );
+      background-size: 5px 5px, 4px 4px;
+      mix-blend-mode: overlay;
+      animation: pixelScan 0.28s steps(8) infinite;
+      z-index: 2;
+    }
     .bubble {
+      position: relative;
       max-width: 92%;
       padding: 0.65rem 0.85rem;
       border-radius: 12px;
@@ -767,9 +935,649 @@
         filter: brightness(1.12) saturate(1.08);
       }
     }
+
+    /* —— GUI modes: spatial · liquid · orb —— */
+    .gui-mode-toggle {
+      position: fixed;
+      top: 0.65rem;
+      right: 0.65rem;
+      z-index: 100000;
+      margin: 0;
+      padding: 0.38rem 0.72rem;
+      font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(200, 230, 255, 0.82);
+      background: rgba(6, 12, 20, 0.72);
+      border: 1px solid rgba(103, 232, 249, 0.35);
+      border-radius: 4px;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 0 20px rgba(13, 148, 136, 0.12);
+    }
+    .gui-mode-toggle:hover {
+      color: #ecfeff;
+      border-color: rgba(103, 232, 249, 0.55);
+    }
+    .gui-root--spatial {
+      width: 100%;
+      height: 100dvh;
+      min-height: 0;
+    }
+    .gui-root--spatial[hidden] {
+      display: none !important;
+    }
+    .gui-root--liquid {
+      position: fixed;
+      inset: 0;
+      z-index: 99990;
+      background: #000000;
+      overflow: hidden;
+    }
+    .gui-root--liquid[hidden] {
+      display: none !important;
+    }
+    .gui-root--orb {
+      position: fixed;
+      inset: 0;
+      z-index: 99990;
+      background: #000000;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      box-sizing: border-box;
+      padding-bottom: 0.5rem;
+    }
+    .gui-root--orb[hidden] {
+      display: none !important;
+    }
+    .orb-view {
+      position: relative;
+      width: min(44vmin, 440px);
+      max-width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      gap: 0;
+      flex: 0 0 auto;
+    }
+    .orb-view--balloon-room {
+      width: 100%;
+      max-width: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
+      justify-content: flex-start;
+      padding-top: 2vh;
+    }
+    .orb-view__fly-stage {
+      position: relative;
+      width: 100%;
+      min-height: min(44vmin, 440px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .orb-view--balloon-room .orb-view__fly-stage {
+      flex: 1 1 auto;
+      min-height: min(72vh, 720px);
+      width: 100%;
+    }
+    .orb-view__blob {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      max-height: min(44vmin, 440px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-origin: 50% 50%;
+      will-change: transform;
+    }
+    .orb-view__blob--balloon {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: min(42vmin, 400px);
+      max-width: min(42vmin, 400px);
+      aspect-ratio: 1;
+      max-height: min(42vmin, 400px);
+      animation: orb-balloon-flight 9.2s cubic-bezier(0.42, 0.06, 0.24, 1) forwards;
+    }
+    .orb-view__blob--balloon .orb-view__sphere {
+      animation: none;
+    }
+    .orb-view__blob--balloon .orb-view__halo {
+      animation: none;
+      opacity: 0.82;
+      transform: scale(1);
+    }
+    .orb-view__blob--poked {
+      animation: orb-poke-fluid 1.45s cubic-bezier(0.25, 0.82, 0.3, 1) both;
+    }
+    .orb-view__blob--poked .orb-view__sphere {
+      animation: orb-poke-surface 1.45s cubic-bezier(0.25, 0.82, 0.3, 1) both;
+    }
+    .orb-view__blob--swarming .orb-view__sphere {
+      animation: orb-swarm-main 6.25s cubic-bezier(0.42, 0.03, 0.22, 1) forwards;
+    }
+    .orb-view__blob--swarming .orb-view__halo {
+      animation: orb-swarm-halo 6.25s cubic-bezier(0.42, 0.03, 0.22, 1) forwards;
+    }
+    .orb-view__swarm {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 4;
+      opacity: 0;
+      visibility: hidden;
+    }
+    .orb-view__blob--swarming .orb-view__swarm {
+      opacity: 1;
+      visibility: visible;
+    }
+    .orb-view__swarm-arm {
+      --tx: 0px;
+      --ty: 0px;
+      --w1x: 0px;
+      --w1y: 0px;
+      --w2x: 0px;
+      --w2y: 0px;
+      --w3x: 0px;
+      --w3y: 0px;
+      --blob-s: 32px;
+      --lag: 0;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 0;
+      height: 0;
+      transform: translate(-50%, -50%);
+      transform-origin: center center;
+    }
+    .orb-view__mini {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: var(--blob-s, 32px);
+      height: var(--blob-s, 32px);
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(
+        circle at 28% 24%,
+        #f4f6f8 0%,
+        #d8dde4 8%,
+        #a8b0bc 28%,
+        #707884 52%,
+        #454a52 72%,
+        #1a1c20 92%
+      );
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        0 0 20px rgba(160, 170, 182, 0.12),
+        inset -5px -12px 18px rgba(0, 0, 0, 0.55),
+        inset 5px 8px 14px rgba(255, 255, 255, 0.28);
+    }
+    .orb-view__blob--swarming .orb-view__swarm-arm {
+      animation: orb-lava-blob 6.25s cubic-bezier(0.38, 0.06, 0.22, 1) both;
+      animation-delay: calc(var(--lag) * 1s);
+    }
+    .orb-view__blob--swarming .orb-view__mini {
+      animation: orb-lava-mini-shape 6.25s cubic-bezier(0.38, 0.06, 0.22, 1) both;
+      animation-delay: calc(var(--lag) * 1s);
+    }
+    .orb-view__halo {
+      position: absolute;
+      inset: -20%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(210, 215, 222, 0.07) 0%, rgba(100, 105, 115, 0.04) 38%, transparent 68%);
+      filter: blur(18px);
+      animation: orb-halo-drift 16s ease-in-out infinite;
+    }
+    .orb-view__sphere {
+      position: relative;
+      width: 72%;
+      height: 72%;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle at 26% 22%,
+        #ffffff 0%,
+        #eceff2 5%,
+        #c8ced6 14%,
+        #9aa3ad 32%,
+        #6e7680 50%,
+        #4a4f56 64%,
+        #2e3136 78%,
+        #141518 92%
+      );
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.12),
+        0 0 56px rgba(180, 188, 198, 0.1),
+        inset -14px -32px 52px rgba(0, 0, 0, 0.62),
+        inset 14px 22px 44px rgba(255, 255, 255, 0.38),
+        inset 5px 8px 20px rgba(255, 255, 255, 0.22);
+      animation: orb-mercury-breathe 7s ease-in-out infinite;
+    }
+    .orb-view__label {
+      position: relative;
+      margin: 1.25rem 0 0;
+      padding: 0;
+      font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+      font-size: clamp(0.65rem, 1.1vw, 0.78rem);
+      letter-spacing: 0.42em;
+      text-transform: uppercase;
+      color: rgba(180, 186, 196, 0.38);
+      text-shadow: none;
+    }
+    .orb-view__actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem 0.65rem;
+      margin-top: 1.35rem;
+      max-width: min(100%, 22rem);
+      pointer-events: auto;
+    }
+    .orb-view__btn {
+      margin: 0;
+      padding: 0.4rem 0.85rem;
+      font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(200, 206, 216, 0.72);
+      background: rgba(16, 18, 22, 0.92);
+      border: 1px solid rgba(160, 168, 180, 0.28);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .orb-view__btn:hover:not(:disabled) {
+      color: rgba(235, 238, 245, 0.92);
+      border-color: rgba(200, 208, 220, 0.45);
+    }
+    .orb-view__btn:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .orb-view__btn--primary {
+      border-color: rgba(210, 215, 222, 0.42);
+      color: rgba(228, 232, 240, 0.88);
+    }
+    @keyframes orb-mercury-breathe {
+      0%,
+      100% {
+        transform: scale(1);
+        filter: brightness(1);
+      }
+      50% {
+        transform: scale(1.022);
+        filter: brightness(1.06);
+      }
+    }
+    @keyframes orb-halo-drift {
+      0%,
+      100% {
+        opacity: 0.75;
+        transform: scale(1) rotate(0deg);
+      }
+      50% {
+        opacity: 0.95;
+        transform: scale(1.04) rotate(3deg);
+      }
+    }
+    @keyframes orb-poke-fluid {
+      0% {
+        transform: translate(0, 0) rotate(0deg) scale(1);
+      }
+      7% {
+        transform: translate(16px, -8px) rotate(-5deg) scale(1.07, 0.93);
+      }
+      20% {
+        transform: translate(-12px, 6px) rotate(6deg) scale(0.93, 1.09);
+      }
+      38% {
+        transform: translate(9px, -4px) rotate(-3deg) scale(1.04, 0.96);
+      }
+      58% {
+        transform: translate(-6px, 3px) rotate(2deg) scale(0.97, 1.03);
+      }
+      78% {
+        transform: translate(3px, -1px) rotate(-1deg) scale(1.02, 0.99);
+      }
+      100% {
+        transform: translate(0, 0) rotate(0deg) scale(1);
+      }
+    }
+    @keyframes orb-poke-surface {
+      0% {
+        transform: scale(1, 1);
+        border-radius: 50%;
+        filter: brightness(1);
+      }
+      8% {
+        transform: scale(1.1, 0.9);
+        border-radius: 44% 56% 54% 46% / 48% 45% 55% 52%;
+        filter: brightness(1.14);
+      }
+      24% {
+        transform: scale(0.92, 1.08);
+        border-radius: 55% 45% 46% 54% / 52% 54% 46% 48%;
+        filter: brightness(1.06);
+      }
+      42% {
+        transform: scale(1.05, 0.95);
+        border-radius: 48% 52% 50% 50% / 52% 48% 50% 50%;
+        filter: brightness(1.03);
+      }
+      62% {
+        transform: scale(0.98, 1.04);
+        border-radius: 51% 49% 52% 48% / 49% 51% 48% 52%;
+        filter: brightness(1.02);
+      }
+      82% {
+        transform: scale(1.02, 0.99);
+        border-radius: 50% 50% 49% 51% / 50% 50% 51% 49%;
+        filter: brightness(1);
+      }
+      100% {
+        transform: scale(1, 1);
+        border-radius: 50%;
+        filter: brightness(1);
+      }
+    }
+    @keyframes orb-swarm-main {
+      0% {
+        opacity: 1;
+        transform: scale(1);
+        filter: brightness(1);
+      }
+      6% {
+        opacity: 0.88;
+        transform: scale(0.94);
+        filter: brightness(1.04);
+      }
+      12% {
+        opacity: 0;
+        transform: scale(0);
+        filter: brightness(1);
+      }
+      12.01%,
+      74% {
+        opacity: 0;
+        transform: scale(0);
+      }
+      80% {
+        opacity: 0.45;
+        transform: scale(0.72);
+      }
+      88% {
+        opacity: 0.95;
+        transform: scale(1.05);
+      }
+      96% {
+        opacity: 1;
+        transform: scale(0.995);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+        filter: brightness(1);
+      }
+    }
+    @keyframes orb-swarm-halo {
+      0%,
+      5% {
+        opacity: 0.75;
+        transform: scale(1) rotate(0deg);
+      }
+      12% {
+        opacity: 0;
+        transform: scale(0.15) rotate(0deg);
+      }
+      12.01%,
+      74% {
+        opacity: 0;
+        transform: scale(0);
+      }
+      80% {
+        opacity: 0.3;
+        transform: scale(0.8) rotate(0deg);
+      }
+      100% {
+        opacity: 0.75;
+        transform: scale(1) rotate(0deg);
+      }
+    }
+    @keyframes orb-lava-blob {
+      0% {
+        transform: translate(-50%, -50%) translate(0, 0) scale(0.25);
+        opacity: 0;
+      }
+      6% {
+        opacity: 0.7;
+      }
+      20% {
+        transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) scale(1);
+        opacity: 1;
+      }
+      34% {
+        transform: translate(-50%, -50%) translate(calc(var(--tx) + var(--w1x)), calc(var(--ty) + var(--w1y))) scale(1.04);
+        opacity: 1;
+      }
+      50% {
+        transform: translate(-50%, -50%) translate(calc(var(--tx) + var(--w2x)), calc(var(--ty) + var(--w2y))) scale(0.96);
+        opacity: 1;
+      }
+      64% {
+        transform: translate(-50%, -50%) translate(calc(var(--tx) + var(--w3x)), calc(var(--ty) + var(--w3y))) scale(1.02);
+        opacity: 1;
+      }
+      74% {
+        transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) scale(1);
+        opacity: 1;
+      }
+      84% {
+        transform: translate(-50%, -50%) translate(calc(0.4 * var(--tx)), calc(0.4 * var(--ty))) scale(0.82);
+        opacity: 0.88;
+      }
+      92% {
+        transform: translate(-50%, -50%) translate(calc(0.12 * var(--tx)), calc(0.12 * var(--ty))) scale(0.4);
+        opacity: 0.35;
+      }
+      100% {
+        transform: translate(-50%, -50%) translate(0, 0) scale(0.08);
+        opacity: 0;
+      }
+    }
+    @keyframes orb-lava-mini-shape {
+      0%,
+      18% {
+        border-radius: 50%;
+      }
+      32% {
+        border-radius: 54% 46% 52% 48% / 47% 53% 51% 49%;
+      }
+      48% {
+        border-radius: 46% 54% 48% 52% / 53% 47% 49% 51%;
+      }
+      64% {
+        border-radius: 51% 49% 53% 47% / 48% 52% 50% 50%;
+      }
+      73% {
+        border-radius: 52% 48% 50% 50% / 50% 50% 50% 50%;
+      }
+      82%,
+      100% {
+        border-radius: 50%;
+      }
+    }
+    @keyframes orb-balloon-flight {
+      0% {
+        transform: translate(-50%, -50%) translate(0, 0) scale(1);
+      }
+      9% {
+        transform: translate(-50%, -50%) translate(-10vw, -18vh) scale(0.9);
+      }
+      20% {
+        transform: translate(-50%, -50%) translate(16vw, -12vh) scale(0.74);
+      }
+      34% {
+        transform: translate(-50%, -50%) translate(26vw, 4vh) scale(0.58);
+      }
+      48% {
+        transform: translate(-50%, -50%) translate(12vw, 20vh) scale(0.46);
+      }
+      60% {
+        transform: translate(-50%, -50%) translate(-18vw, 16vh) scale(0.38);
+      }
+      72% {
+        transform: translate(-50%, -50%) translate(-30vw, -2vh) scale(0.32);
+      }
+      82% {
+        transform: translate(-50%, -50%) translate(-14vw, -14vh) scale(0.4);
+      }
+      90% {
+        transform: translate(-50%, -50%) translate(-3vw, -2vh) scale(0.72);
+      }
+      96% {
+        transform: translate(-50%, -50%) translate(0, 0) scale(0.94);
+      }
+      100% {
+        transform: translate(-50%, -50%) translate(0, 0) scale(1);
+      }
+    }
+    .liquid-water-stage {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: clamp(112px, 30vh, 320px);
+      pointer-events: none;
+      z-index: 2;
+    }
+    .liquid-water-stage canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .liquid-vignette {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: clamp(140px, 34vh, 360px);
+      pointer-events: none;
+      z-index: 3;
+      background: linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.28) 0%,
+        rgba(0, 0, 0, 0.06) 55%,
+        transparent 100%
+      );
+      mix-blend-mode: multiply;
+    }
+    .liquid-preset-bar {
+      position: absolute;
+      top: 1.15rem;
+      left: 0.75rem;
+      z-index: 99991;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+      max-width: min(92vw, 28rem);
+      pointer-events: auto;
+    }
+    .liquid-preset-btn {
+      margin: 0;
+      padding: 0.35rem 0.78rem;
+      font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+      font-size: 0.66rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(200, 220, 240, 0.78);
+      background: rgba(8, 12, 20, 0.75);
+      border: 1px solid rgba(103, 232, 249, 0.3);
+      border-radius: 4px;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .liquid-preset-btn:hover {
+      color: #ecfeff;
+      border-color: rgba(103, 232, 249, 0.48);
+    }
+    .liquid-preset-btn--active {
+      color: rgba(255, 210, 210, 0.95);
+      border-color: rgba(248, 113, 113, 0.55);
+      background: rgba(36, 10, 12, 0.62);
+      box-shadow: 0 0 20px rgba(200, 60, 60, 0.12);
+    }
+    .liquid-dashboard-date {
+      position: absolute;
+      top: 1.35rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 99991;
+      margin: 0;
+      max-width: min(96vw, 42rem);
+      padding: 0 1rem;
+      box-sizing: border-box;
+      font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+      font-size: clamp(0.7rem, 1.05vw, 0.86rem);
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(186, 230, 253, 0.82);
+      text-align: center;
+      line-height: 1.45;
+      text-shadow: 0 0 24px rgba(34, 211, 238, 0.12);
+      pointer-events: none;
+    }
+    .liquid-rain-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 99988;
+    }
+    .liquid-stars-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 99984;
+    }
+    .liquid-storm-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: min(44vh, 420px);
+      max-height: 420px;
+      pointer-events: none;
+      z-index: 99986;
+    }
   </style>
 </head>
 <body>
+  <button type="button" class="gui-mode-toggle" id="guiModeToggle" aria-pressed="false" title="Cycle view: Spatial → Liquid → Orb (Alt+Shift+L)">
+    Liquid
+  </button>
+  <div class="gui-root gui-root--spatial" id="guiSpatial">
   <div class="layout">
     <aside class="side-col side-col--left" aria-label="Voice settings, inner map, and encounter readout">
       <div class="model-panel left-stack-panel" id="modelPanel">
@@ -869,7 +1677,13 @@
       <div class="reactor-scene" aria-hidden="true">
         <canvas id="reactorCanvas"></canvas>
       </div>
-      <div id="log" aria-live="polite"></div>
+      <div class="microbe-scene" id="microbeScene" aria-hidden="true">
+        <canvas id="microbeCanvas"></canvas>
+      </div>
+      <div class="chat-log-shell" id="chatLogShell">
+        <div id="log" aria-live="polite"></div>
+        <canvas id="etherDissolveCanvas" class="ether-dissolve-canvas" width="32" height="32" aria-hidden="true"></canvas>
+      </div>
     </div>
     <div class="composer">
       <form class="row" id="form">
@@ -986,10 +1800,86 @@
           </div>
           <p class="persona-panel__status" id="personaPanelStatus"></p>
           <p class="persona-panel__path" id="personaPathLabel"></p>
+          <div class="persona-panel__subtitle persona-panel__subtitle--inner">Inner layer (emotional TRM)</div>
+          <p class="persona-panel__hint" style="margin: 0.25rem 0 0.4rem; font-size: 0.62rem">
+            Private voice while idle — paired with <code>inner_persona.txt</code>. Not spoken in chat.
+          </p>
+          <textarea
+            id="innerPersonaEditor"
+            class="persona-panel__editor"
+            rows="8"
+            spellcheck="true"
+            autocomplete="off"
+            aria-label="Inner persona file contents"
+          ></textarea>
+          <div class="persona-panel__row">
+            <button type="button" class="persona-btn persona-btn--primary" id="innerPersonaSave">Save inner layer</button>
+          </div>
+          <p class="persona-panel__status" id="innerPersonaPanelStatus"></p>
+          <p class="persona-panel__path" id="innerPersonaPathLabel"></p>
         </div>
       </div>
     </aside>
   </div>
+  </div>
+
+  <div class="gui-root gui-root--liquid" id="guiLiquid" hidden aria-label="Liquid interface">
+    <canvas id="liquidStarsCanvas" class="liquid-stars-canvas" aria-hidden="true"></canvas>
+    <div class="liquid-preset-bar" id="liquidPresetBar" role="toolbar" aria-label="Liquid mood presets">
+      <button type="button" class="liquid-preset-btn liquid-preset-btn--active" data-liquid-preset="anger" aria-pressed="true">
+        Anger
+      </button>
+      <button type="button" class="liquid-preset-btn" data-liquid-preset="sadness" aria-pressed="false">
+        Sadness
+      </button>
+      <button type="button" class="liquid-preset-btn" data-liquid-preset="neutral" aria-pressed="false">
+        Neutral
+      </button>
+    </div>
+    <time id="liquidDashboardDate" class="liquid-dashboard-date" datetime=""></time>
+    <canvas id="liquidStormCanvas" class="liquid-storm-canvas" aria-hidden="true"></canvas>
+    <div class="liquid-water-stage" aria-hidden="true">
+      <canvas id="liquidWaterCanvas"></canvas>
+    </div>
+    <div class="liquid-vignette" aria-hidden="true"></div>
+    <canvas id="liquidRainCanvas" class="liquid-rain-canvas" aria-hidden="true"></canvas>
+  </div>
+
+  <div class="gui-root gui-root--orb" id="guiOrb" hidden aria-label="Orb view · mercury sphere">
+    <div class="orb-view" id="orbMercuryView">
+      <div class="orb-view__fly-stage" id="orbFlyStage">
+        <div class="orb-view__blob" id="orbMercuryBlob">
+        <div class="orb-view__halo" aria-hidden="true"></div>
+        <div class="orb-view__sphere" id="orbMercurySphere" aria-hidden="true"></div>
+        <div class="orb-view__swarm" id="orbSwarm" aria-hidden="true">
+          <div class="orb-view__swarm-arm"><div class="orb-view__mini"></div></div>
+          <div class="orb-view__swarm-arm"><div class="orb-view__mini"></div></div>
+          <div class="orb-view__swarm-arm"><div class="orb-view__mini"></div></div>
+          <div class="orb-view__swarm-arm"><div class="orb-view__mini"></div></div>
+          <div class="orb-view__swarm-arm"><div class="orb-view__mini"></div></div>
+          <div class="orb-view__swarm-arm"><div class="orb-view__mini"></div></div>
+          <div class="orb-view__swarm-arm"><div class="orb-view__mini"></div></div>
+          <div class="orb-view__swarm-arm"><div class="orb-view__mini"></div></div>
+          <div class="orb-view__swarm-arm"><div class="orb-view__mini"></div></div>
+          <div class="orb-view__swarm-arm"><div class="orb-view__mini"></div></div>
+        </div>
+        </div>
+      </div>
+      <p class="orb-view__label">Mercury</p>
+      <div class="orb-view__actions" role="group" aria-label="Orb actions">
+        <button type="button" class="orb-view__btn orb-view__btn--primary" id="orbBtnPoke" title="Disturb the mercury orb">
+          Poke the orb
+        </button>
+        <button type="button" class="orb-view__btn" id="orbBtnSplit" title="Scatter into droplets, drift like a lava lamp, then merge">
+          Lava scatter
+        </button>
+        <button type="button" class="orb-view__btn" id="orbBtnBalloon" title="Orb floats around like a balloon, shrinks, then returns">
+          Balloon flight
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const log = document.getElementById("log");
     const input = document.getElementById("input");
@@ -998,6 +1888,985 @@
     const listenBtn = document.getElementById("listen");
     const ttsToggleBtn = document.getElementById("ttsToggle");
     const status = document.getElementById("status");
+
+    (function initGuiModeToggle() {
+      const KEY = "spatial_gui_mode";
+      const btn = document.getElementById("guiModeToggle");
+      const rootSpatial = document.getElementById("guiSpatial");
+      const rootLiquid = document.getElementById("guiLiquid");
+      const rootOrb = document.getElementById("guiOrb");
+      if (!btn || !rootSpatial || !rootLiquid || !rootOrb) return;
+
+      const NEXT_LABEL = { spatial: "Liquid", liquid: "Orb", orb: "Spatial" };
+
+      function modeAfter(current) {
+        if (current === "spatial") return "liquid";
+        if (current === "liquid") return "orb";
+        return "spatial";
+      }
+
+      function refreshLiquidDashboardDate() {
+        const el = document.getElementById("liquidDashboardDate");
+        if (!el) return;
+        const now = new Date();
+        el.textContent = now.toLocaleDateString(undefined, {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        const y = now.getFullYear();
+        const mo = String(now.getMonth() + 1).padStart(2, "0");
+        const d = String(now.getDate()).padStart(2, "0");
+        el.setAttribute("datetime", y + "-" + mo + "-" + d);
+      }
+
+      function apply(mode) {
+        const spatial = mode === "spatial";
+        const liquid = mode === "liquid";
+        const orb = mode === "orb";
+        rootSpatial.hidden = !spatial;
+        rootLiquid.hidden = !liquid;
+        rootOrb.hidden = !orb;
+        btn.textContent = NEXT_LABEL[mode] || "Spatial";
+        btn.setAttribute("aria-pressed", spatial ? "false" : "true");
+        try {
+          localStorage.setItem(KEY, mode);
+        } catch (_) {}
+        if (liquid) {
+          refreshLiquidDashboardDate();
+          if (typeof window.__syncLiquidPresetBar === "function") window.__syncLiquidPresetBar();
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              if (rootLiquid.hidden) return;
+              if (typeof window.__startLiquidRain === "function") window.__startLiquidRain();
+              if (typeof window.__startLiquidStorm === "function") window.__startLiquidStorm();
+              if (typeof window.__startLiquidStars === "function") window.__startLiquidStars();
+            });
+          });
+          if (typeof window.__startLiquidWater === "function") window.__startLiquidWater();
+        } else {
+          if (typeof window.__stopLiquidRain === "function") window.__stopLiquidRain();
+          if (typeof window.__stopLiquidStorm === "function") window.__stopLiquidStorm();
+          if (typeof window.__stopLiquidStars === "function") window.__stopLiquidStars();
+          if (typeof window.__stopLiquidWater === "function") window.__stopLiquidWater();
+        }
+      }
+
+      let initial = "spatial";
+      try {
+        const s = localStorage.getItem(KEY);
+        if (s === "liquid" || s === "spatial" || s === "orb") initial = s;
+      } catch (_) {}
+
+      /* Inline scripts run before deferred <script type="module"> at end of body.
+         If we apply(liquid) here, __startLiquidWater is still undefined. Wait until
+         DOMContentLoaded, which runs after deferred modules have executed. */
+      function bootstrapMode() {
+        apply(initial);
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", bootstrapMode, { once: true });
+      } else {
+        queueMicrotask(bootstrapMode);
+      }
+
+      function currentMode() {
+        if (!rootLiquid.hidden) return "liquid";
+        if (!rootOrb.hidden) return "orb";
+        return "spatial";
+      }
+
+      btn.addEventListener("click", function () {
+        apply(modeAfter(currentMode()));
+      });
+
+      window.addEventListener("keydown", function (ev) {
+        if (!ev.altKey || !ev.shiftKey || ev.key.toLowerCase() !== "l") return;
+        ev.preventDefault();
+        apply(modeAfter(currentMode()));
+      });
+    })();
+
+    (function initOrbMercury() {
+      const viewRoot = document.getElementById("orbMercuryView");
+      const blob = document.getElementById("orbMercuryBlob");
+      const sphere = document.getElementById("orbMercurySphere");
+      const swarm = document.getElementById("orbSwarm");
+      const pokeBtn = document.getElementById("orbBtnPoke");
+      const splitBtn = document.getElementById("orbBtnSplit");
+      const balloonBtn = document.getElementById("orbBtnBalloon");
+      if (!viewRoot || !blob || !sphere || !swarm || !pokeBtn || !splitBtn || !balloonBtn) return;
+
+      let busy = false;
+      let safetyTimer = 0;
+
+      function setButtonsEnabled(on) {
+        pokeBtn.disabled = !on;
+        splitBtn.disabled = !on;
+        balloonBtn.disabled = !on;
+      }
+
+      function clearSafety() {
+        if (safetyTimer) {
+          window.clearTimeout(safetyTimer);
+          safetyTimer = 0;
+        }
+      }
+
+      function pokeCleanup() {
+        clearSafety();
+        blob.classList.remove("orb-view__blob--poked");
+        busy = false;
+        setButtonsEnabled(true);
+      }
+
+      function onPokeFluidEnd(ev) {
+        if (ev.target !== blob) return;
+        if (ev.animationName !== "orb-poke-fluid") return;
+        blob.removeEventListener("animationend", onPokeFluidEnd);
+        pokeCleanup();
+      }
+
+      pokeBtn.addEventListener("click", function () {
+        if (busy) return;
+        if (blob.classList.contains("orb-view__blob--swarming")) return;
+        if (blob.classList.contains("orb-view__blob--balloon")) return;
+        busy = true;
+        setButtonsEnabled(false);
+        blob.classList.remove("orb-view__blob--poked");
+        void blob.offsetWidth;
+        blob.classList.add("orb-view__blob--poked");
+        blob.addEventListener("animationend", onPokeFluidEnd);
+        safetyTimer = window.setTimeout(function () {
+          blob.removeEventListener("animationend", onPokeFluidEnd);
+          pokeCleanup();
+        }, 1800);
+      });
+
+      function splitCleanup() {
+        clearSafety();
+        blob.classList.remove("orb-view__blob--swarming");
+        busy = false;
+        setButtonsEnabled(true);
+      }
+
+      function onSwarmMainEnd(ev) {
+        if (ev.target !== sphere) return;
+        if (ev.animationName !== "orb-swarm-main") return;
+        sphere.removeEventListener("animationend", onSwarmMainEnd);
+        splitCleanup();
+      }
+
+      function assignLavaScatterParams() {
+        const arms = swarm.querySelectorAll(".orb-view__swarm-arm");
+        const br = blob.getBoundingClientRect();
+        const R = Math.max(80, Math.min(br.width, br.height) * 0.44);
+        const order = Array.from({ length: arms.length }, function (_, i) {
+          return i;
+        }).sort(function () {
+          return Math.random() - 0.5;
+        });
+        const sgn = function () {
+          return Math.random() < 0.5 ? -1 : 1;
+        };
+        for (let idx = 0; idx < arms.length; idx++) {
+          const arm = arms[idx];
+          const angle = Math.random() * Math.PI * 2;
+          const dist = 0.26 + Math.random() * 0.68;
+          const tx = Math.cos(angle) * R * dist;
+          const ty =
+            Math.sin(angle) * R * dist * (0.78 + Math.random() * 0.32) + (Math.random() - 0.5) * R * 0.12;
+          const s = 16 + Math.random() * 40;
+          arm.style.setProperty("--tx", tx.toFixed(1) + "px");
+          arm.style.setProperty("--ty", ty.toFixed(1) + "px");
+          arm.style.setProperty("--blob-s", s.toFixed(1) + "px");
+          arm.style.setProperty("--w1x", (sgn() * (5 + Math.random() * 18)).toFixed(1) + "px");
+          arm.style.setProperty("--w1y", (sgn() * (4 + Math.random() * 16)).toFixed(1) + "px");
+          arm.style.setProperty("--w2x", (sgn() * (6 + Math.random() * 20)).toFixed(1) + "px");
+          arm.style.setProperty("--w2y", (sgn() * (5 + Math.random() * 18)).toFixed(1) + "px");
+          arm.style.setProperty("--w3x", (sgn() * (4 + Math.random() * 14)).toFixed(1) + "px");
+          arm.style.setProperty("--w3y", (sgn() * (4 + Math.random() * 14)).toFixed(1) + "px");
+          arm.style.setProperty("--lag", (order[idx] * 0.055).toFixed(3));
+        }
+      }
+
+      splitBtn.addEventListener("click", function () {
+        if (busy) return;
+        if (blob.classList.contains("orb-view__blob--poked")) return;
+        if (blob.classList.contains("orb-view__blob--balloon")) return;
+        busy = true;
+        setButtonsEnabled(false);
+        assignLavaScatterParams();
+        blob.classList.remove("orb-view__blob--swarming");
+        void blob.offsetWidth;
+        blob.classList.add("orb-view__blob--swarming");
+        sphere.addEventListener("animationend", onSwarmMainEnd);
+        safetyTimer = window.setTimeout(function () {
+          sphere.removeEventListener("animationend", onSwarmMainEnd);
+          splitCleanup();
+        }, 7000);
+      });
+
+      function balloonCleanup() {
+        clearSafety();
+        blob.classList.remove("orb-view__blob--balloon");
+        viewRoot.classList.remove("orb-view--balloon-room");
+        busy = false;
+        setButtonsEnabled(true);
+      }
+
+      function onBalloonEnd(ev) {
+        if (ev.target !== blob) return;
+        if (ev.animationName !== "orb-balloon-flight") return;
+        blob.removeEventListener("animationend", onBalloonEnd);
+        balloonCleanup();
+      }
+
+      balloonBtn.addEventListener("click", function () {
+        if (busy) return;
+        if (blob.classList.contains("orb-view__blob--poked")) return;
+        if (blob.classList.contains("orb-view__blob--swarming")) return;
+        busy = true;
+        setButtonsEnabled(false);
+        viewRoot.classList.add("orb-view--balloon-room");
+        blob.classList.remove("orb-view__blob--balloon");
+        void blob.offsetWidth;
+        blob.classList.add("orb-view__blob--balloon");
+        blob.addEventListener("animationend", onBalloonEnd);
+        safetyTimer = window.setTimeout(function () {
+          blob.removeEventListener("animationend", onBalloonEnd);
+          balloonCleanup();
+        }, 10200);
+      });
+    })();
+
+    (function initLiquidRain() {
+      const root = document.getElementById("guiLiquid");
+      const canvas = document.getElementById("liquidRainCanvas");
+      if (!root || !canvas) return;
+      const ctx = canvas.getContext("2d", { alpha: true });
+      if (!ctx) return;
+
+      const COUNT = 780;
+      const WIND = 0.11;
+      let w = 0;
+      let h = 0;
+      let dpr = 1;
+      let raf = 0;
+      let running = false;
+      let lastT = 0;
+      let ro = null;
+      const streaks = [];
+
+      function spawn() {
+        const layer = (Math.random() * Math.random() * 3) | 0;
+        const z = layer;
+        return {
+          x: Math.random() * 2400 - 400,
+          y: Math.random() * 1800 - 400,
+          z: z,
+          len:
+            z === 0 ? 9 + Math.random() * 10 : z === 1 ? 20 + Math.random() * 18 : 34 + Math.random() * 28,
+          v: (z === 0 ? 0.52 : z === 1 ? 0.92 : 1.38) * (0.82 + Math.random() * 0.38),
+          lw: z === 0 ? 0.32 + Math.random() * 0.2 : z === 1 ? 0.55 + Math.random() * 0.35 : 0.95 + Math.random() * 0.65,
+          a: z === 0 ? 0.045 + Math.random() * 0.05 : z === 1 ? 0.1 + Math.random() * 0.1 : 0.2 + Math.random() * 0.18,
+          ph: Math.random() * Math.PI * 2,
+        };
+      }
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        w = Math.max(0, root.clientWidth);
+        h = Math.max(0, root.clientHeight);
+        if (w < 2 || h < 2) return;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function fillStreaks() {
+        streaks.length = 0;
+        for (let i = 0; i < COUNT; i++) streaks.push(spawn());
+      }
+
+      function frame(now) {
+        if (!running) return;
+        raf = requestAnimationFrame(frame);
+        const dt = Math.min(0.048, Math.max(0, (now - lastT) / 1000));
+        lastT = now;
+
+        let rainOn = true;
+        try {
+          const gid = typeof window.__getLiquidVisualPresetId === "function" ? window.__getLiquidVisualPresetId() : "anger";
+          const pr = window.__liquidVisualPresets && window.__liquidVisualPresets[gid];
+          if (pr && pr.rain === false) rainOn = false;
+        } catch (_) {}
+
+        ctx.clearRect(0, 0, w, h);
+        if (!rainOn) return;
+
+        if (w > 2 && h > 2 && streaks.length === 0) fillStreaks();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        let i;
+        let s;
+        let gust;
+        let ang;
+        let dx;
+        let dy;
+        let x0;
+        let y0;
+        let x1;
+        let y1;
+        let g;
+        let tail;
+        let mid;
+
+        for (i = 0; i < streaks.length; i++) {
+          s = streaks[i];
+          gust = Math.sin(now * 0.0007 + s.ph) * 0.35;
+          ang = WIND + s.z * 0.018 + gust * 0.012;
+          s.y += s.v * 560 * dt;
+          s.x += (s.z * 28 + 18 + gust * 6) * dt;
+          if (s.y > h + s.len * 2) {
+            s.y = -s.len * 2 - Math.random() * 120;
+            s.x = Math.random() * (w + 500) - 250;
+          }
+          if (s.x > w + 80) s.x -= w + 160 + Math.random() * 200;
+          if (s.x < -80) s.x += w + 160 + Math.random() * 200;
+        }
+
+        for (let pass = 0; pass < 3; pass++) {
+          for (i = 0; i < streaks.length; i++) {
+            s = streaks[i];
+            if (s.z !== pass) continue;
+            gust = Math.sin(now * 0.0007 + s.ph) * 0.35;
+            ang = WIND + s.z * 0.018 + gust * 0.012;
+            dx = Math.sin(ang) * s.len;
+            dy = Math.cos(ang) * s.len;
+            x0 = s.x;
+            y0 = s.y;
+            x1 = s.x + dx;
+            y1 = s.y + dy;
+            g = ctx.createLinearGradient(x0, y0, x1, y1);
+            tail = 0.08 + s.z * 0.06;
+            mid = 0.42 + s.z * 0.1;
+            g.addColorStop(0, "rgba(110,140,175," + (s.a * 0.12) + ")");
+            g.addColorStop(tail, "rgba(165,195,225," + (s.a * 0.35) + ")");
+            g.addColorStop(mid, "rgba(210,228,248," + (s.a * 0.72) + ")");
+            g.addColorStop(1, "rgba(248,252,255," + s.a + ")");
+            ctx.strokeStyle = g;
+            ctx.lineWidth = s.lw;
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+            ctx.strokeStyle = "rgba(200,220,245," + (s.a * 0.14) + ")";
+            ctx.lineWidth = s.lw * 2.4;
+            ctx.beginPath();
+            ctx.moveTo(x0 - 0.4, y0 - 0.8);
+            ctx.lineTo(x1 - 0.4, y1 - 0.8);
+            ctx.stroke();
+          }
+        }
+      }
+
+      window.__startLiquidRain = function () {
+        if (running) return;
+        running = true;
+        resize();
+        if (w > 2 && h > 2 && streaks.length === 0) fillStreaks();
+        lastT = performance.now();
+        if (!ro) {
+          ro = new ResizeObserver(function () {
+            if (!running) return;
+            resize();
+          });
+          ro.observe(root);
+        }
+        raf = requestAnimationFrame(frame);
+      };
+
+      window.__stopLiquidRain = function () {
+        running = false;
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      };
+    })();
+
+    (function initLiquidStorm() {
+      const root = document.getElementById("guiLiquid");
+      const canvas = document.getElementById("liquidStormCanvas");
+      if (!root || !canvas) return;
+      const ctx = canvas.getContext("2d", { alpha: true });
+      if (!ctx) return;
+
+      const PUFFS = 110;
+      let w = 0;
+      let bandH = 280;
+      let dpr = 1;
+      let raf = 0;
+      let running = false;
+      let lastT = 0;
+      let ro = null;
+      const puffs = [];
+      let flash = 0;
+      let boltPts = null;
+      let boltLife = 0;
+      let nextBoltAt = 0;
+      let nextFlickerAt = 0;
+
+      function genPuffs() {
+        puffs.length = 0;
+        if (w < 4 || bandH < 4) return;
+        for (let i = 0; i < PUFFS; i++) {
+          const layer = (Math.pow(Math.random(), 0.85) * 3) | 0;
+          puffs.push({
+            x: Math.random() * (w + 280) - 140,
+            y: Math.random() * bandH * 0.95,
+            r: 22 + Math.random() * 88 + layer * 12,
+            layer: layer,
+            ph: Math.random() * 6.283,
+            drift: 0.35 + Math.random() * 1.1,
+          });
+        }
+      }
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        w = Math.max(0, root.clientWidth);
+        const cap = Math.min(root.clientHeight * 0.44, 420);
+        bandH = Math.max(120, Math.floor(cap));
+        if (w < 2 || bandH < 2) return;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(bandH * dpr);
+        canvas.style.width = w + "px";
+        canvas.style.height = bandH + "px";
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        genPuffs();
+      }
+
+      function buildBolt(sx, sy) {
+        const pts = [[sx, sy]];
+        let x = sx;
+        let y = sy;
+        const targetY = bandH * (0.5 + Math.random() * 0.42);
+        let guard = 0;
+        while (y < targetY && guard < 22) {
+          x += (Math.random() - 0.46) * (42 + guard * 2.2);
+          y += 14 + Math.random() * 36;
+          pts.push([x, y]);
+          guard++;
+        }
+        return pts;
+      }
+
+      function triggerStrike(now) {
+        flash = 0.55 + Math.random() * 0.38;
+        boltLife = 2 + ((Math.random() * 3) | 0);
+        const sx = w * (0.15 + Math.random() * 0.7);
+        const sy = Math.random() * bandH * 0.28;
+        boltPts = buildBolt(sx, sy);
+        nextBoltAt = now + 900 + Math.pow(Math.random(), 0.55) * 8200;
+      }
+
+      function drawPuff(p, now) {
+        const cx = p.x + Math.sin(now * 0.000035 + p.ph) * 10;
+        const cy = p.y + Math.cos(now * 0.000028 + p.ph * 0.8) * 5;
+        const r = p.r;
+        const L = p.layer;
+        const baseA = L === 0 ? 0.38 : L === 1 ? 0.5 : 0.62;
+
+        const g = ctx.createRadialGradient(cx, cy, r * 0.05, cx, cy, r);
+        g.addColorStop(0, "rgba(72,82,102," + (baseA * 0.35) + ")");
+        g.addColorStop(0.35, "rgba(38,46,62," + (baseA * 0.85) + ")");
+        g.addColorStop(0.72, "rgba(22,28,42," + (baseA * 0.7) + ")");
+        g.addColorStop(1, "rgba(5,8,14,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, 6.2831853);
+        ctx.fill();
+
+        const hx = cx - r * 0.38;
+        const hy = cy - r * 0.42;
+        const hg = ctx.createRadialGradient(hx, hy, 0, hx, hy, r * 0.55);
+        const hi = L === 2 ? 0.22 : L === 1 ? 0.14 : 0.08;
+        hg.addColorStop(0, "rgba(160,178,205," + hi + ")");
+        hg.addColorStop(0.4, "rgba(90,105,130," + (hi * 0.45) + ")");
+        hg.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = hg;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, 6.2831853);
+        ctx.fill();
+      }
+
+      function frame(now) {
+        if (!running) return;
+        raf = requestAnimationFrame(frame);
+        const dt = Math.min(0.05, Math.max(0, (now - lastT) / 1000));
+        lastT = now;
+
+        if (w < 2 || bandH < 2) {
+          resize();
+        }
+
+        ctx.clearRect(0, 0, w, bandH);
+
+        let cloudsOn = true;
+        try {
+          const gid = typeof window.__getLiquidVisualPresetId === "function" ? window.__getLiquidVisualPresetId() : "anger";
+          const pr = window.__liquidVisualPresets && window.__liquidVisualPresets[gid];
+          if (pr && pr.storm && pr.storm.clouds === false) cloudsOn = false;
+        } catch (_) {}
+
+        if (!cloudsOn) return;
+
+        const sky = ctx.createLinearGradient(0, 0, 0, bandH);
+        sky.addColorStop(0, "rgba(14,18,32,0.92)");
+        sky.addColorStop(0.45, "rgba(8,11,22,0.55)");
+        sky.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, w, bandH);
+
+        let i;
+        let p;
+        for (i = 0; i < puffs.length; i++) {
+          p = puffs[i];
+          p.x += p.drift * 10 * dt;
+          if (p.x > w + p.r + 40) p.x -= w + p.r * 2 + 200;
+        }
+
+        for (let pass = 0; pass < 3; pass++) {
+          for (i = 0; i < puffs.length; i++) {
+            p = puffs[i];
+            if (p.layer !== pass) continue;
+            drawPuff(p, now);
+          }
+        }
+
+        let lightningOn = true;
+        try {
+          const gid = typeof window.__getLiquidVisualPresetId === "function" ? window.__getLiquidVisualPresetId() : "anger";
+          const pr = window.__liquidVisualPresets && window.__liquidVisualPresets[gid];
+          if (pr && pr.storm && pr.storm.lightning === false) lightningOn = false;
+        } catch (_) {}
+
+        if (lightningOn) {
+          if (now >= nextBoltAt && w > 10) {
+            triggerStrike(now);
+          }
+          if (now >= nextFlickerAt) {
+            nextFlickerAt = now + 400 + Math.random() * 2800;
+            if (flash < 0.06 && Math.random() < 0.55) {
+              flash = Math.max(flash, 0.05 + Math.random() * 0.14);
+            }
+          }
+
+          if (flash > 0.012) {
+            ctx.save();
+            ctx.globalCompositeOperation = "screen";
+            const f = Math.min(1, flash);
+            const lg = ctx.createLinearGradient(0, 0, 0, bandH);
+            lg.addColorStop(0, "rgba(210,225,250," + (f * 0.42) + ")");
+            lg.addColorStop(0.4, "rgba(170,195,235," + (f * 0.22) + ")");
+            lg.addColorStop(1, "rgba(120,150,200," + (f * 0.06) + ")");
+            ctx.fillStyle = lg;
+            ctx.fillRect(0, 0, w, bandH);
+            ctx.restore();
+            flash *= 0.78;
+          } else {
+            flash = 0;
+          }
+
+          if (boltPts && boltLife > 0) {
+            ctx.save();
+            ctx.lineCap = "round";
+            ctx.lineJoin = "miter";
+            ctx.strokeStyle = "rgba(235,245,255,0.95)";
+            ctx.lineWidth = 2.2;
+            ctx.shadowColor = "rgba(160,200,255,0.95)";
+            ctx.shadowBlur = 18;
+            ctx.beginPath();
+            ctx.moveTo(boltPts[0][0], boltPts[0][1]);
+            for (i = 1; i < boltPts.length; i++) {
+              ctx.lineTo(boltPts[i][0], boltPts[i][1]);
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = "rgba(255,255,255,0.9)";
+            ctx.lineWidth = 0.65;
+            ctx.stroke();
+            ctx.restore();
+            boltLife--;
+            if (boltLife <= 0) boltPts = null;
+          }
+        } else {
+          flash = 0;
+          boltPts = null;
+          boltLife = 0;
+        }
+
+        /* Soften bottom edge: clouds/sky were a hard rectangle against #000 — fade alpha to transparent. */
+        ctx.save();
+        ctx.globalCompositeOperation = "destination-in";
+        const edgeFade = ctx.createLinearGradient(0, bandH * 0.52, 0, bandH);
+        edgeFade.addColorStop(0, "rgba(255,255,255,1)");
+        edgeFade.addColorStop(0.35, "rgba(255,255,255,1)");
+        edgeFade.addColorStop(0.72, "rgba(255,255,255,0.45)");
+        edgeFade.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = edgeFade;
+        ctx.fillRect(0, 0, w, bandH);
+        ctx.restore();
+      }
+
+      window.__startLiquidStorm = function () {
+        if (running) return;
+        running = true;
+        resize();
+        lastT = performance.now();
+        nextBoltAt = lastT + 800 + Math.random() * 2400;
+        nextFlickerAt = lastT + 500;
+        flash = 0;
+        boltPts = null;
+        boltLife = 0;
+        if (!ro) {
+          ro = new ResizeObserver(function () {
+            if (!running) return;
+            resize();
+          });
+          ro.observe(root);
+        }
+        raf = requestAnimationFrame(frame);
+      };
+
+      window.__stopLiquidStorm = function () {
+        running = false;
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        flash = 0;
+        boltPts = null;
+        boltLife = 0;
+      };
+    })();
+
+    (function initLiquidStars() {
+      const root = document.getElementById("guiLiquid");
+      const canvas = document.getElementById("liquidStarsCanvas");
+      if (!root || !canvas) return;
+      const ctx = canvas.getContext("2d", { alpha: true });
+      if (!ctx) return;
+
+      const COUNT = 540;
+      let w = 0;
+      let h = 0;
+      let dpr = 1;
+      let raf = 0;
+      let running = false;
+      let lastT = 0;
+      let ro = null;
+      const stars = [];
+
+      function spawnStar() {
+        const t = Math.random();
+        const layer = t < 0.55 ? 0 : t < 0.88 ? 1 : 2;
+        const yBias = Math.pow(Math.random(), 0.72);
+        return {
+          x: Math.random() * 2400 - 200,
+          y: yBias * 0.68 * Math.max(h, 400),
+          r: layer === 0 ? 0.35 + Math.random() * 0.55 : layer === 1 ? 0.65 + Math.random() * 0.9 : 1.1 + Math.random() * 1.35,
+          baseA: layer === 0 ? 0.12 + Math.random() * 0.22 : layer === 1 ? 0.28 + Math.random() * 0.35 : 0.45 + Math.random() * 0.38,
+          twPh: Math.random() * 6.2831853,
+          twSp: 0.0009 + Math.random() * 0.0026,
+          layer: layer,
+          warm: Math.random() < 0.12,
+        };
+      }
+
+      function fillStars() {
+        stars.length = 0;
+        if (w < 4 || h < 4) return;
+        for (let i = 0; i < COUNT; i++) stars.push(spawnStar());
+      }
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        w = Math.max(0, root.clientWidth);
+        h = Math.max(0, root.clientHeight);
+        if (w < 2 || h < 2) return;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        fillStars();
+      }
+
+      function frame(now) {
+        if (!running) return;
+        raf = requestAnimationFrame(frame);
+        const dt = Math.min(0.05, Math.max(0, (now - lastT) / 1000));
+        lastT = now;
+
+        let starsOn = false;
+        try {
+          const gid = typeof window.__getLiquidVisualPresetId === "function" ? window.__getLiquidVisualPresetId() : "anger";
+          const pr = window.__liquidVisualPresets && window.__liquidVisualPresets[gid];
+          if (pr && pr.sky && pr.sky.stars === true) starsOn = true;
+        } catch (_) {}
+
+        ctx.clearRect(0, 0, w, h);
+        if (!starsOn) return;
+
+        if (w < 2 || h < 2) {
+          resize();
+          return;
+        }
+        if (stars.length === 0) fillStars();
+
+        const gSky = ctx.createLinearGradient(0, 0, 0, h);
+        gSky.addColorStop(0, "rgba(6,22,38,0.94)");
+        gSky.addColorStop(0.22, "rgba(8,32,48,0.55)");
+        gSky.addColorStop(0.48, "rgba(4,18,32,0.22)");
+        gSky.addColorStop(0.72, "rgba(0,0,0,0.04)");
+        gSky.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = gSky;
+        ctx.fillRect(0, 0, w, h);
+
+        let i;
+        let s;
+        let tw;
+        let a;
+        for (i = 0; i < stars.length; i++) {
+          s = stars[i];
+          s.x += (s.layer * 0.45 + 0.08) * dt;
+          if (s.x > w + 40) s.x -= w + 120 + Math.random() * 200;
+        }
+
+        for (let pass = 0; pass < 3; pass++) {
+          for (i = 0; i < stars.length; i++) {
+            s = stars[i];
+            if (s.layer !== pass) continue;
+            tw = 0.52 + 0.48 * Math.sin(now * s.twSp + s.twPh);
+            a = s.baseA * tw;
+            ctx.fillStyle = s.warm
+              ? "rgba(255,248,235," + (a * 0.95) + ")"
+              : "rgba(190,240,255," + a + ")";
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, 6.2831853);
+            ctx.fill();
+            if (s.layer > 0) {
+              ctx.fillStyle = s.warm
+                ? "rgba(255,252,245," + (a * 0.22) + ")"
+                : "rgba(210,250,255," + (a * 0.25) + ")";
+              ctx.beginPath();
+              ctx.arc(s.x, s.y, s.r * 2.4, 0, 6.2831853);
+              ctx.fill();
+            }
+          }
+        }
+      }
+
+      window.__startLiquidStars = function () {
+        if (running) return;
+        running = true;
+        resize();
+        lastT = performance.now();
+        if (!ro) {
+          ro = new ResizeObserver(function () {
+            if (!running) return;
+            resize();
+          });
+          ro.observe(root);
+        }
+        raf = requestAnimationFrame(frame);
+      };
+
+      window.__stopLiquidStars = function () {
+        running = false;
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      };
+    })();
+
+    (function initEtherIdleDissolve() {
+      const shell = document.getElementById("chatLogShell");
+      const etherCanvas = document.getElementById("etherDissolveCanvas");
+      if (!shell || !etherCanvas || !log) return;
+      const etherCtx = etherCanvas.getContext("2d");
+      const CHAT_IDLE_ETHER_MS = 50 * 1000;
+      const ETHER_DISSOLVE_MS = 6800;
+      const CELL = 5;
+      let lastActivity = Date.now();
+      let idleTimerId = null;
+      let dissolveActive = false;
+      let dissolveFinishTimer = null;
+      let etherRaf = 0;
+      let dissolveStart = 0;
+
+      function resizeEtherCanvas() {
+        const sw = Math.max(1, shell.clientWidth);
+        const sh = Math.max(1, shell.clientHeight);
+        etherCanvas.width = sw;
+        etherCanvas.height = sh;
+        etherCanvas.style.width = sw + "px";
+        etherCanvas.style.height = sh + "px";
+      }
+
+      function cancelEtherDissolve() {
+        if (dissolveFinishTimer) {
+          clearTimeout(dissolveFinishTimer);
+          dissolveFinishTimer = null;
+        }
+        if (etherRaf) {
+          cancelAnimationFrame(etherRaf);
+          etherRaf = 0;
+        }
+        const hadClass = shell.classList.contains("chat-log-shell--dissolving");
+        dissolveActive = false;
+        shell.classList.remove("chat-log-shell--dissolving");
+        shell.style.removeProperty("--ether-dissolve-dur");
+        resizeEtherCanvas();
+        etherCtx.clearRect(0, 0, etherCanvas.width, etherCanvas.height);
+        if (hadClass) {
+          log.querySelectorAll(".bubble").forEach((b) => {
+            b.style.animation = "";
+            b.style.animationDelay = "";
+          });
+        }
+      }
+
+      function scheduleIdleEther() {
+        if (idleTimerId) clearTimeout(idleTimerId);
+        idleTimerId = setTimeout(() => {
+          idleTimerId = null;
+          if (dissolveActive) return;
+          if (Date.now() - lastActivity < CHAT_IDLE_ETHER_MS - 80) return;
+          if (!log.querySelector(".bubble")) {
+            scheduleIdleEther();
+            return;
+          }
+          beginEtherDissolve();
+        }, CHAT_IDLE_ETHER_MS);
+      }
+
+      function finishEtherDissolve() {
+        dissolveFinishTimer = null;
+        dissolveActive = false;
+        if (etherRaf) {
+          cancelAnimationFrame(etherRaf);
+          etherRaf = 0;
+        }
+        shell.classList.remove("chat-log-shell--dissolving");
+        shell.style.removeProperty("--ether-dissolve-dur");
+        log.innerHTML = "";
+        resizeEtherCanvas();
+        etherCtx.clearRect(0, 0, etherCanvas.width, etherCanvas.height);
+        scheduleIdleEther();
+      }
+
+      function etherFrame(now) {
+        if (!dissolveActive) return;
+        const w = shell.clientWidth;
+        const h = shell.clientHeight;
+        const elapsed = now - dissolveStart;
+        const u = Math.min(1, elapsed / ETHER_DISSOLVE_MS);
+        etherCtx.fillStyle = "rgba(0, 6, 10, " + (0.035 + u * 0.15) + ")";
+        etherCtx.fillRect(0, 0, w, h);
+        const gw = Math.ceil(w / CELL);
+        const gh = Math.ceil(h / CELL);
+        const blocks = Math.floor(28 + u * 300 + Math.random() * 50);
+        for (let i = 0; i < blocks; i += 1) {
+          const gx = Math.floor(Math.random() * gw);
+          const gy = Math.floor(Math.random() * gh);
+          const r = Math.random();
+          const a = 0.14 + u * 0.58;
+          if (r < 0.52) {
+            etherCtx.fillStyle = "rgba(0, 0, 0, " + a * (0.45 + Math.random() * 0.55) + ")";
+          } else if (r < 0.84) {
+            etherCtx.fillStyle =
+              "rgba(34, 211, 238, " + a * (0.3 + Math.random() * 0.45) + ")";
+          } else {
+            etherCtx.fillStyle = "rgba(210, 250, 255, " + a * 0.28 + ")";
+          }
+          etherCtx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
+        }
+        if (Math.random() < 0.42) {
+          etherCtx.strokeStyle = "rgba(34, 211, 238, " + (0.06 + u * 0.22) + ")";
+          etherCtx.lineWidth = 1;
+          const y = Math.random() * h;
+          etherCtx.beginPath();
+          etherCtx.moveTo(0, y);
+          etherCtx.lineTo(w, y + (Math.random() - 0.5) * 8);
+          etherCtx.stroke();
+        }
+        if (u < 1) etherRaf = requestAnimationFrame(etherFrame);
+        else etherRaf = 0;
+      }
+
+      function beginEtherDissolve() {
+        if (dissolveActive) return;
+        if (Date.now() - lastActivity < CHAT_IDLE_ETHER_MS - 80) {
+          scheduleIdleEther();
+          return;
+        }
+        if (!log.querySelector(".bubble")) {
+          scheduleIdleEther();
+          return;
+        }
+        if (idleTimerId) {
+          clearTimeout(idleTimerId);
+          idleTimerId = null;
+        }
+        dissolveActive = true;
+        resizeEtherCanvas();
+        shell.style.setProperty("--ether-dissolve-dur", ETHER_DISSOLVE_MS / 1000 + "s");
+        const bubbles = log.querySelectorAll(".bubble");
+        bubbles.forEach((el, i) => {
+          el.style.animationDelay = i * 0.07 + "s";
+        });
+        etherCtx.clearRect(0, 0, etherCanvas.width, etherCanvas.height);
+        shell.classList.add("chat-log-shell--dissolving");
+        dissolveStart = performance.now();
+        etherRaf = requestAnimationFrame(etherFrame);
+        const staggerMs = Math.min(2400, bubbles.length * 70);
+        dissolveFinishTimer = setTimeout(finishEtherDissolve, ETHER_DISSOLVE_MS + staggerMs + 350);
+      }
+
+      function bumpChatEtherActivity() {
+        lastActivity = Date.now();
+        cancelEtherDissolve();
+        scheduleIdleEther();
+      }
+
+      window.bumpChatEtherActivity = bumpChatEtherActivity;
+
+      window.addEventListener("resize", resizeEtherCanvas);
+      resizeEtherCanvas();
+
+      const inputEl = document.getElementById("input");
+      if (inputEl) {
+        inputEl.addEventListener("input", bumpChatEtherActivity);
+        inputEl.addEventListener("keydown", bumpChatEtherActivity);
+      }
+      log.addEventListener(
+        "scroll",
+        () => {
+          bumpChatEtherActivity();
+        },
+        { passive: true }
+      );
+      scheduleIdleEther();
+    })();
 
     const INF_STORAGE_KEY = "sm_chat_inference";
 
@@ -1156,6 +3025,7 @@
       wrap.appendChild(body);
       log.appendChild(wrap);
       scrollBottom();
+      if (typeof window.bumpChatEtherActivity === "function") window.bumpChatEtherActivity();
     }
 
     function createAssistantBubble() {
@@ -1174,6 +3044,7 @@
       wrap.appendChild(metaEl);
       log.appendChild(wrap);
       scrollBottom();
+      if (typeof window.bumpChatEtherActivity === "function") window.bumpChatEtherActivity();
       return { wrap, body, metaEl };
     }
 
@@ -1189,13 +3060,19 @@
             (cons.reinforcements_added ?? 0) +
             (cons.link_budget_hit ? " (budget)" : "")
           : "";
+      const wStr = Number.isFinite(Number(d.w)) ? Number(d.w).toFixed(2) : "0.00";
+      const vStr = Number.isFinite(Number(d.v)) ? Number(d.v).toFixed(2) : "0.00";
       metaEl.textContent =
-        "xyz=(" +
+        "xyzwv=(" +
         d.x.toFixed(2) +
         "," +
         d.y.toFixed(2) +
         "," +
         d.z.toFixed(2) +
+        "," +
+        wStr +
+        "," +
+        vStr +
         ") · " +
         d.commitment +
         " · " +
@@ -1248,7 +3125,17 @@
       idleEl.hidden = true;
       grid.hidden = false;
       document.getElementById("sfCoords").textContent =
-        "(" + sfFmtNum(d.x, 3) + ", " + sfFmtNum(d.y, 3) + ", " + sfFmtNum(d.z, 3) + ")";
+        "(" +
+        sfFmtNum(d.x, 3) +
+        ", " +
+        sfFmtNum(d.y, 3) +
+        ", " +
+        sfFmtNum(d.z, 3) +
+        " | " +
+        sfFmtNum(d.w, 3) +
+        ", " +
+        sfFmtNum(d.v, 3) +
+        ")";
       document.getElementById("sfCommitment").textContent = d.commitment != null ? String(d.commitment) : "—";
       document.getElementById("sfConfidence").textContent = sfFmtNum(d.confidence, 2);
       const caut = !!d.caution;
@@ -1270,6 +3157,7 @@
     }
 
     let busy = false;
+    window.__isSpatialChatBusy = () => busy;
     const refreshSpace = async () => {
       if (typeof window.refreshMemoryFieldViz === "function") {
         await window.refreshMemoryFieldViz();
@@ -1399,6 +3287,7 @@
     async function submitMessage() {
       const text = input.value.trim();
       if (!text || busy) return;
+      if (typeof window.__wakeInnerTrm === "function") window.__wakeInnerTrm("send");
       busy = true;
       sendBtn.disabled = true;
       listenBtn.disabled = true;
@@ -1464,6 +3353,7 @@
                 rule_id: ev.data.rule_id,
               });
               mergeSpatialEncounter(ev.data);
+              if (typeof window.bumpChatEtherActivity === "function") window.bumpChatEtherActivity();
             } else if (ev.event === "token") {
               spinDownReactor();
               if (!assistantBody) {
@@ -1473,6 +3363,7 @@
               }
               assistantBody.textContent += ev.text;
               scrollBottom();
+              if (typeof window.bumpChatEtherActivity === "function") window.bumpChatEtherActivity();
             } else if (ev.event === "error") {
               throw new Error(ev.detail || "stream error");
             } else if (ev.event === "done") {
@@ -1488,6 +3379,7 @@
               fillMeta(metaEl, ev.data);
               mergeSpatialEncounter(ev.data);
               refreshSpace();
+              if (typeof window.bumpChatEtherActivity === "function") window.bumpChatEtherActivity();
             }
           }
         }
@@ -1510,6 +3402,7 @@
         setListeningUi(false);
         input.focus();
         scrollBottom();
+        if (typeof window.bumpChatEtherActivity === "function") window.bumpChatEtherActivity();
       }
     }
 
@@ -1541,6 +3434,457 @@
     initSpeechRecognition();
     setTtsUi();
 
+    (function initIdleInnerTrm() {
+      const IDLE_MS = 120000;
+      const TRM_STEPS = 3;
+      const layer = document.getElementById("innerStreamLayer");
+      const streamBody = document.getElementById("innerStreamBody");
+      if (!layer || !streamBody) return;
+
+      let lastUserActivity = Date.now();
+      let overlayOpen = false;
+      let innerController = null;
+      let shakeAccum = 0;
+      let shakeResetTimer = null;
+      let lastMx = null;
+      let lastMy = null;
+      let runScheduled = false;
+
+      function bumpUserActivity() {
+        if (overlayOpen) return;
+        lastUserActivity = Date.now();
+      }
+
+      window.__wakeInnerTrm = function (_reason) {
+        if (innerController) {
+          try {
+            innerController.abort();
+          } catch (_) {}
+          innerController = null;
+        }
+        overlayOpen = false;
+        shakeAccum = 0;
+        lastMx = null;
+        lastMy = null;
+        layer.classList.remove("inner-stream-layer--active");
+        setTimeout(function () {
+          if (!overlayOpen) layer.hidden = true;
+        }, 360);
+        lastUserActivity = Date.now();
+      };
+
+      function openOverlay() {
+        overlayOpen = true;
+        streamBody.textContent = "";
+        layer.hidden = false;
+        requestAnimationFrame(function () {
+          layer.classList.add("inner-stream-layer--active");
+        });
+      }
+
+      async function runInnerTrm() {
+        if (overlayOpen || runScheduled) return;
+        if (document.hidden) return;
+        if (typeof window.__isSpatialChatBusy === "function" && window.__isSpatialChatBusy()) return;
+        if (Date.now() - lastUserActivity < IDLE_MS) return;
+        runScheduled = true;
+        try {
+          openOverlay();
+          innerController = new AbortController();
+          const r = await fetch("/api/inner/trm/stream?steps=" + TRM_STEPS, {
+            method: "POST",
+            signal: innerController.signal,
+          });
+          if (!r.ok) {
+            const errText = await r.text().catch(function () {
+              return "";
+            });
+            streamBody.textContent = "Inner thread failed: " + (errText || r.statusText);
+            return;
+          }
+          const reader = r.body.getReader();
+          const dec = new TextDecoder();
+          let buf = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            const lines = buf.split("\n");
+            buf = lines.pop() || "";
+            for (let i = 0; i < lines.length; i += 1) {
+              const line = lines[i].trim();
+              if (!line) continue;
+              let ev;
+              try {
+                ev = JSON.parse(line);
+              } catch {
+                continue;
+              }
+              if (ev.event === "token" && ev.text) streamBody.textContent += ev.text;
+              else if (ev.event === "step")
+                streamBody.textContent += "\n\n— Pass " + ev.step + " / " + ev.total + " —\n\n";
+              else if (ev.event === "error" && ev.detail)
+                streamBody.textContent += "\n\n[" + ev.detail + "]\n";
+            }
+          }
+        } catch (e) {
+          if (e && e.name === "AbortError") {
+            streamBody.textContent += "\n\n…interrupted.";
+          } else if (streamBody.textContent === "") {
+            streamBody.textContent = String((e && e.message) || e);
+          }
+        } finally {
+          innerController = null;
+          runScheduled = false;
+        }
+      }
+
+      let moveBumpTs = 0;
+      document.addEventListener(
+        "mousemove",
+        function (e) {
+          if (overlayOpen) {
+            if (lastMx != null && lastMy != null) {
+              shakeAccum += Math.hypot(e.clientX - lastMx, e.clientY - lastMy);
+            }
+            lastMx = e.clientX;
+            lastMy = e.clientY;
+            clearTimeout(shakeResetTimer);
+            shakeResetTimer = setTimeout(function () {
+              shakeAccum = 0;
+            }, 420);
+            if (shakeAccum > 88) window.__wakeInnerTrm("mouse");
+            return;
+          }
+          const t = Date.now();
+          if (t - moveBumpTs > 950) {
+            moveBumpTs = t;
+            bumpUserActivity();
+          }
+        },
+        { passive: true }
+      );
+
+      document.addEventListener(
+        "mousedown",
+        function () {
+          if (!overlayOpen) bumpUserActivity();
+        },
+        true
+      );
+
+      document.addEventListener(
+        "keydown",
+        function (e) {
+          if (overlayOpen && e.code === "Space") {
+            const t = e.target;
+            const tag = t && t.tagName;
+            if (tag !== "TEXTAREA" && tag !== "INPUT" && !t.isContentEditable) {
+              e.preventDefault();
+              window.__wakeInnerTrm("space");
+            }
+            return;
+          }
+          if (!overlayOpen) bumpUserActivity();
+        },
+        true
+      );
+
+      setInterval(function () {
+        if (overlayOpen) return;
+        if (document.hidden) return;
+        if (typeof window.__isSpatialChatBusy === "function" && window.__isSpatialChatBusy()) return;
+        if (Date.now() - lastUserActivity < IDLE_MS) return;
+        runInnerTrm();
+      }, 4000);
+    })();
+
+    (function initMicrobePetriField() {
+      const scene = document.getElementById("microbeScene");
+      const canvas = document.getElementById("microbeCanvas");
+      if (!scene || !canvas) return;
+      const ctx = canvas.getContext("2d", { alpha: true });
+      let w = 0;
+      let h = 0;
+      let dpr = 1;
+      const MAX_MICROBES = 72;
+      const ZAP_MS = 780;
+      const RECOVER_MS = 4800;
+      let microbes = [];
+      const sparks = [];
+      let zapArcs = [];
+      let mode = "idle";
+      let zapEndAt = 0;
+      let recoverStart = 0;
+      let tGlobal = 0;
+      let pendingRecover = false;
+
+      function easeOutCubic(x) {
+        return 1 - Math.pow(1 - x, 3);
+      }
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        w = scene.clientWidth;
+        h = scene.clientHeight;
+        if (w < 2 || h < 2) return;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function spawnMicrobe(fromEdge) {
+        let x;
+        let y;
+        const pad = 8;
+        const spanX = Math.max(4, w - pad * 2);
+        const spanY = Math.max(4, h - pad * 2);
+        if (fromEdge || Math.random() < 0.45) {
+          if (Math.random() < 0.5) {
+            x = Math.random() < 0.5 ? pad : w - pad;
+            y = pad + Math.random() * spanY;
+          } else {
+            x = pad + Math.random() * spanX;
+            y = Math.random() < 0.5 ? pad : h - pad;
+          }
+        } else {
+          x = pad + Math.random() * spanX;
+          y = pad + Math.random() * spanY;
+        }
+        microbes.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 0.5,
+          vy: (Math.random() - 0.5) * 0.5,
+          r: 0.9 + Math.random() * 2.1,
+          ph: Math.random() * Math.PI * 2,
+          wob: 0.55 + Math.random() * 1.25,
+          hue: 155 + Math.random() * 58,
+          dartT: 0,
+        });
+      }
+
+      function burstAt(x, y, col) {
+        const n = 3 + Math.floor(Math.random() * 5);
+        for (let i = 0; i < n; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const sp = 1.4 + Math.random() * 4.2;
+          sparks.push({
+            x,
+            y,
+            vx: Math.cos(a) * sp,
+            vy: Math.sin(a) * sp,
+            life: 1,
+            col: col || [195, 255, 245],
+          });
+        }
+      }
+
+      function beginZap() {
+        if (w < 8 || h < 8) return;
+        mode = "zapping";
+        zapEndAt = performance.now() + ZAP_MS;
+        pendingRecover = false;
+        zapArcs.length = 0;
+        for (let k = 0; k < 32; k++) {
+          zapArcs.push({
+            x1: Math.random() * w,
+            y1: Math.random() * h,
+            x2: Math.random() * w,
+            y2: Math.random() * h,
+            life: 0.4 + Math.random() * 0.75,
+            seed: Math.random() * Math.PI * 2,
+          });
+        }
+        microbes.forEach((m) => {
+          burstAt(m.x, m.y, [185, 255, 248]);
+        });
+        microbes = [];
+      }
+
+      window.__microbeFieldSetThinking = function (isThinking) {
+        if (isThinking) {
+          pendingRecover = false;
+          if (mode !== "zapping") beginZap();
+        } else if (mode === "zapping" || mode === "purged") {
+          pendingRecover = true;
+        }
+      };
+
+      function targetMicrobeCount(now) {
+        if (mode === "zapping" || mode === "purged") return 0;
+        if (mode === "recovering") {
+          const u = Math.min(1, (now - recoverStart) / RECOVER_MS);
+          if (u >= 1) mode = "idle";
+          return Math.max(0, Math.floor(MAX_MICROBES * easeOutCubic(u)));
+        }
+        return MAX_MICROBES;
+      }
+
+      function tickFrame(now) {
+        tGlobal += 0.016;
+
+        if (w < 4) {
+          requestAnimationFrame(tickFrame);
+          return;
+        }
+
+        if (mode === "zapping" && now >= zapEndAt) {
+          if (pendingRecover) {
+            mode = "recovering";
+            recoverStart = now;
+            pendingRecover = false;
+          } else {
+            mode = "purged";
+          }
+          zapArcs.length = 0;
+        }
+
+        if (mode === "purged" && pendingRecover) {
+          mode = "recovering";
+          recoverStart = now;
+          pendingRecover = false;
+        }
+
+        const want = targetMicrobeCount(now);
+        while (microbes.length < want) spawnMicrobe(true);
+        while (microbes.length > want) microbes.pop();
+
+        ctx.clearRect(0, 0, w, h);
+
+        if (mode !== "zapping") {
+          for (let i = 0; i < microbes.length; i++) {
+            const m = microbes[i];
+            const wx = Math.sin(tGlobal * m.wob + m.ph) * 0.5;
+            const wy = Math.cos(tGlobal * (m.wob * 0.9) + m.ph * 1.25) * 0.5;
+            m.x += m.vx + wx;
+            m.y += m.vy + wy;
+            m.vx *= 0.993;
+            m.vy *= 0.993;
+            if (m.dartT > 0) {
+              m.dartT -= 1;
+            } else if (Math.random() < 0.002) {
+              m.dartT = 16 + Math.floor(Math.random() * 28);
+              const ang = Math.random() * Math.PI * 2;
+              const sp = 4.5 + Math.random() * 7;
+              m.vx += Math.cos(ang) * sp;
+              m.vy += Math.sin(ang) * sp;
+            }
+            const pad = 8;
+            if (m.x < pad) {
+              m.x = pad;
+              m.vx *= -0.35;
+              m.vx += 0.2;
+            } else if (m.x > w - pad) {
+              m.x = w - pad;
+              m.vx *= -0.35;
+              m.vx -= 0.2;
+            }
+            if (m.y < pad) {
+              m.y = pad;
+              m.vy *= -0.35;
+              m.vy += 0.2;
+            } else if (m.y > h - pad) {
+              m.y = h - pad;
+              m.vy *= -0.35;
+              m.vy -= 0.2;
+            }
+
+            const pulse = 0.62 + Math.sin(tGlobal * 3.2 + m.ph) * 0.2;
+            ctx.save();
+            ctx.globalAlpha = 0.2 + pulse * 0.32;
+            const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r * 3.2);
+            g.addColorStop(0, "hsla(" + m.hue + ",78%,70%,0.92)");
+            g.addColorStop(0.55, "hsla(" + (m.hue + 10) + ",65%,52%,0.38)");
+            g.addColorStop(1, "hsla(" + m.hue + ",55%,38%,0)");
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.ellipse(m.x, m.y, m.r * 1.15, m.r * 0.72, tGlobal * 0.35 + m.ph, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 0.48;
+            ctx.fillStyle = "rgba(235,255,252,0.55)";
+            ctx.beginPath();
+            ctx.arc(m.x - m.r * 0.22, m.y - m.r * 0.12, 0.38, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+
+        for (let i = sparks.length - 1; i >= 0; i--) {
+          const s = sparks[i];
+          s.x += s.vx;
+          s.y += s.vy;
+          s.vx *= 0.965;
+          s.vy *= 0.965;
+          s.life -= 0.052;
+          if (s.life <= 0) sparks.splice(i, 1);
+          else {
+            ctx.save();
+            ctx.globalAlpha = s.life * 0.82;
+            ctx.fillStyle = "rgb(" + s.col[0] + "," + s.col[1] + "," + s.col[2] + ")";
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, 1.15 + (1 - s.life) * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+
+        if (mode === "zapping") {
+          for (let i = zapArcs.length - 1; i >= 0; i--) {
+            const z = zapArcs[i];
+            z.life -= 0.085;
+            if (z.life <= 0) {
+              zapArcs.splice(i, 1);
+              continue;
+            }
+            ctx.save();
+            ctx.globalAlpha = z.life * 0.88;
+            ctx.strokeStyle = "rgba(210, 252, 255, " + z.life * 0.85 + ")";
+            ctx.lineWidth = 1.2 + (1 - z.life) * 2.4;
+            ctx.shadowColor = "#7dd3fc";
+            ctx.shadowBlur = 12;
+            const mx = (z.x1 + z.x2) * 0.5 + Math.sin(tGlobal * 8 + z.seed) * 28;
+            const my = (z.y1 + z.y2) * 0.5 + Math.cos(tGlobal * 7 + z.seed) * 24;
+            ctx.beginPath();
+            ctx.moveTo(z.x1, z.y1);
+            ctx.quadraticCurveTo(mx, my, z.x2, z.y2);
+            ctx.stroke();
+            ctx.restore();
+          }
+          const untilZapEnd = zapEndAt - now;
+          if (untilZapEnd > 0 && untilZapEnd < ZAP_MS * 0.85) {
+            for (let q = 0; q < 4; q++) {
+              ctx.save();
+              ctx.globalAlpha = 0.14;
+              ctx.strokeStyle = "#e0fffa";
+              ctx.lineWidth = 0.7;
+              ctx.beginPath();
+              ctx.moveTo(Math.random() * w, Math.random() * h);
+              ctx.lineTo(Math.random() * w, Math.random() * h);
+              ctx.stroke();
+              ctx.restore();
+            }
+          }
+        }
+
+        requestAnimationFrame(tickFrame);
+      }
+
+      window.addEventListener("resize", resize);
+      const chatAreaEl = document.getElementById("chatArea");
+      if (chatAreaEl && typeof ResizeObserver !== "undefined") {
+        const ro = new ResizeObserver(resize);
+        ro.observe(chatAreaEl);
+      }
+      resize();
+      if (w >= 16 && h >= 16) {
+        for (let i = 0; i < MAX_MICROBES; i++) spawnMicrobe(false);
+      }
+      requestAnimationFrame(tickFrame);
+    })();
+
     (function initReactor() {
       const scene = document.querySelector(".reactor-scene");
       const canvas = document.getElementById("reactorCanvas");
@@ -1560,6 +3904,9 @@
       function setReactorThinking(v) {
         thinking = !!v;
         if (chatAreaEl) chatAreaEl.classList.toggle("reactor-thinking", thinking);
+        if (typeof window.__microbeFieldSetThinking === "function") {
+          window.__microbeFieldSetThinking(thinking);
+        }
       }
       window.__setReactorThinking = setReactorThinking;
 
@@ -2147,7 +4494,55 @@
         }
       });
 
+      async function loadInnerPersona() {
+        const ep = document.getElementById("innerPersonaEditor");
+        const ips = document.getElementById("innerPersonaPanelStatus");
+        const ipp = document.getElementById("innerPersonaPathLabel");
+        if (!ep || !ips || !ipp) return;
+        ips.classList.remove("error");
+        ips.textContent = "Loading inner layer…";
+        try {
+          const r = await fetch("/api/inner-persona");
+          const d = await r.json();
+          if (!r.ok) throw new Error(apiErrorMessage(d, r.statusText));
+          ep.value = d.content || "";
+          ipp.textContent = d.path || "";
+          ips.textContent =
+            d.exists === false
+              ? "No file yet — Save to create inner_persona.txt on disk."
+              : "Inner layer loaded. Edit and Save.";
+        } catch (e) {
+          ips.textContent = String(e.message || e);
+          ips.classList.add("error");
+        }
+      }
+
+      const innerSave = document.getElementById("innerPersonaSave");
+      if (innerSave) {
+        innerSave.addEventListener("click", async () => {
+          const ep = document.getElementById("innerPersonaEditor");
+          const ips = document.getElementById("innerPersonaPanelStatus");
+          if (!ep || !ips) return;
+          ips.classList.remove("error");
+          ips.textContent = "Saving inner layer…";
+          try {
+            const r = await fetch("/api/inner-persona", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content: ep.value }),
+            });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(apiErrorMessage(d, r.statusText));
+            ips.textContent = "Saved. Idle TRM will use this voice.";
+          } catch (e) {
+            ips.textContent = String(e.message || e);
+            ips.classList.add("error");
+          }
+        });
+      }
+
       loadPersona();
+      loadInnerPersona();
     })();
 
     input.focus();
@@ -2255,6 +4650,14 @@
         });
         const mesh = new THREE.Mesh(sharedNodeGeom, mat);
         mesh.position.set(n.x, n.y, n.z);
+        const wn = Number(n.w);
+        const vn = Number(n.v);
+        if (Number.isFinite(wn)) {
+          mesh.scale.setScalar(0.82 + 0.38 * (0.5 + 0.5 * Math.max(-1, Math.min(1, wn))));
+        }
+        if (Number.isFinite(vn)) {
+          mat.emissiveIntensity = contested ? 0.35 : 0.08 + 0.28 * (0.5 + 0.5 * Math.max(-1, Math.min(1, vn)));
+        }
         nodesGroup.add(mesh);
         posById.set(n.id, mesh.position);
       }
@@ -2437,5 +4840,612 @@
       boot();
     }
   </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { Water } from "three/addons/objects/Water.js";
+
+    const canvas = document.getElementById("liquidWaterCanvas");
+    const stage = canvas ? canvas.closest(".liquid-water-stage") : null;
+
+    let renderer = null;
+    let scene = null;
+    let camera = null;
+    let water = null;
+    let raf = 0;
+    let running = false;
+    let resizeObserver = null;
+    let liquidResize = null;
+    let assetsReady = false;
+    let startPending = false;
+    let liquidPresetTransitionGen = 0;
+    const clock = new THREE.Clock();
+
+    const LIQUID_MOOD_RIPPLE_MS = 1050;
+    const LIQUID_MOOD_RIPPLE_Z0 = -128;
+    const LIQUID_MOOD_RIPPLE_Z1 = 96;
+
+    /**
+     * Liquid atmosphere presets (water lights, colors, mirror shader tint).
+     * Active id: localStorage `liquid_visual_preset_id` (default `anger`).
+     */
+    const LIQUID_VISUAL_PRESETS = {
+      anger: {
+        id: "anger",
+        label: "Anger",
+        rain: true,
+        storm: { lightning: true, clouds: true },
+        lights: {
+          ambient: { color: 0x381820, intensity: 0.48 },
+          moon: { color: 0xffb8a8, intensity: 0.68, pos: [-42, 88, 62] },
+          fill: { color: 0x884040, intensity: 0.24, pos: [55, 40, -30] },
+          pool: { color: 0xff6a5a, intensity: 34, distance: 300, decay: 1.65, pos: [22, 12, 32] },
+        },
+        water: {
+          sunDirectionCtor: [-0.32, 0.9, 0.28],
+          sunColorCtor: 0xffd0d8,
+          waterColorCtor: 0x240508,
+          distortionScale: 7.8,
+          size: 10.5,
+          sunColorUniform: 0xffccd4,
+          waterColorUniform: 0x1a0306,
+          sunDirectionUniform: [-0.28, 0.92, 0.35],
+        },
+        mirror: {
+          rsMul: [0.95, 0.38, 0.34],
+          rsAdd: [0.065, 0.018, 0.016],
+          floor: [0.072, 0.014, 0.012],
+          outMul: [1.05, 0.76, 0.7],
+          outAdd: [0.028, 0.006, 0.005],
+          deepMul: [0.92, 0.58, 0.52],
+          deepAdd: [0.035, 0, 0],
+        },
+      },
+      sadness: {
+        id: "sadness",
+        label: "Sadness",
+        rain: true,
+        storm: { lightning: false, clouds: true },
+        lights: {
+          ambient: { color: 0x081828, intensity: 0.4 },
+          moon: { color: 0x5a8ec8, intensity: 0.42, pos: [-40, 90, 55] },
+          fill: { color: 0x183048, intensity: 0.16, pos: [52, 38, -32] },
+          pool: { color: 0x284a78, intensity: 20, distance: 320, decay: 1.72, pos: [12, 9, 30] },
+        },
+        water: {
+          sunDirectionCtor: [-0.22, 0.9, 0.28],
+          sunColorCtor: 0x6a8ab0,
+          waterColorCtor: 0x010c18,
+          distortionScale: 5.8,
+          size: 10.5,
+          sunColorUniform: 0x8aa8c8,
+          waterColorUniform: 0x020e1c,
+          sunDirectionUniform: [-0.2, 0.91, 0.32],
+        },
+        mirror: {
+          rsMul: [0.4, 0.52, 0.68],
+          rsAdd: [0.018, 0.032, 0.048],
+          floor: [0.018, 0.038, 0.072],
+          outMul: [0.72, 0.8, 0.94],
+          outAdd: [0.012, 0.022, 0.038],
+          deepMul: [0.48, 0.58, 0.78],
+          deepAdd: [0.022, 0.032, 0.05],
+        },
+      },
+      neutral: {
+        id: "neutral",
+        label: "Neutral",
+        rain: false,
+        storm: { lightning: false, clouds: false },
+        sky: { stars: true },
+        lights: {
+          ambient: { color: 0x061a22, intensity: 0.32 },
+          moon: { color: 0x7ee8e8, intensity: 0.46, pos: [-34, 96, 54] },
+          fill: { color: 0x1a5868, intensity: 0.11, pos: [42, 33, -22] },
+          pool: { color: 0x3dd4d0, intensity: 19, distance: 300, decay: 1.62, pos: [8, 7, 22] },
+        },
+        water: {
+          sunDirectionCtor: [-0.24, 0.9, 0.28],
+          sunColorCtor: 0xa8f0f0,
+          waterColorCtor: 0x043842,
+          distortionScale: 7.1,
+          size: 10.5,
+          sunColorUniform: 0xb8f8f4,
+          waterColorUniform: 0x054850,
+          sunDirectionUniform: [-0.2, 0.91, 0.3],
+        },
+        mirror: {
+          rsMul: [0.42, 0.78, 0.86],
+          rsAdd: [0.028, 0.055, 0.062],
+          floor: [0.028, 0.055, 0.062],
+          outMul: [0.68, 0.88, 0.92],
+          outAdd: [0.02, 0.042, 0.048],
+          deepMul: [0.45, 0.72, 0.8],
+          deepAdd: [0.025, 0.045, 0.05],
+        },
+      },
+    };
+
+    const LIQUID_PRESET_STORAGE_KEY = "liquid_visual_preset_id";
+
+    function getActiveLiquidVisualPreset() {
+      let id = "anger";
+      try {
+        const s = localStorage.getItem(LIQUID_PRESET_STORAGE_KEY);
+        if (s && LIQUID_VISUAL_PRESETS[s]) id = s;
+      } catch (_) {}
+      return LIQUID_VISUAL_PRESETS[id];
+    }
+
+    function setLiquidVisualPresetId(id) {
+      if (!LIQUID_VISUAL_PRESETS[id]) return false;
+      try {
+        localStorage.setItem(LIQUID_PRESET_STORAGE_KEY, id);
+      } catch (_) {
+        return false;
+      }
+      return true;
+    }
+
+    try {
+      if (!localStorage.getItem(LIQUID_PRESET_STORAGE_KEY)) {
+        localStorage.setItem(LIQUID_PRESET_STORAGE_KEY, "anger");
+      }
+    } catch (_) {}
+
+    function makeFallbackNormalTexture(size) {
+      const data = new Uint8Array(size * size * 4);
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const fx = (x / size) * Math.PI * 10;
+          const fy = (y / size) * Math.PI * 10;
+          let nx =
+            Math.sin(fx * 1.1 + fy * 0.6) * 0.45 +
+            Math.sin(fy * 2.2) * 0.22;
+          let ny =
+            Math.cos(fx * 0.85 - fy * 1.15) * 0.45 +
+            Math.cos(fx * 1.9 + fy * 0.4) * 0.2;
+          nx = Math.max(-1, Math.min(1, nx));
+          ny = Math.max(-1, Math.min(1, ny));
+          const nz = Math.sqrt(Math.max(0.02, 1 - nx * nx - ny * ny));
+          const i = (y * size + x) * 4;
+          data[i] = Math.floor((nx * 0.5 + 0.5) * 255);
+          data[i + 1] = Math.floor((ny * 0.5 + 0.5) * 255);
+          data[i + 2] = Math.floor(nz * 255);
+          data[i + 3] = 255;
+        }
+      }
+      const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+      tex.needsUpdate = true;
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      if ("colorSpace" in tex) tex.colorSpace = THREE.NoColorSpace;
+      return tex;
+    }
+
+    /**
+     * Three.js Water mixes Fresnel with `reflectionSample` from the mirror RT.
+     * `waterColor` only scales `scatter` (body); the mirror term stayed luminance-neutral → gray.
+     * Tint where the shader actually composites reflection + the gray vec3(0.1) floor.
+     * Mood ripple: planar sweep along world +Z (u_moodRippleLead = wave front), plus uniforms for width/strength.
+     */
+    function patchLiquidWaterMaterial(material, mirror) {
+      const m = mirror;
+      material.uniforms.u_moodRippleLead = { value: -1e6 };
+      material.uniforms.u_moodRippleWidth = { value: 36 };
+      material.uniforms.u_moodRippleAmp = { value: 0 };
+
+      const rsTint =
+        "\n\t\t\t\t\treflectionSample *= vec3(" +
+        m.rsMul[0] +
+        "," +
+        m.rsMul[1] +
+        "," +
+        m.rsMul[2] +
+        ");\n\t\t\t\t\treflectionSample += vec3(" +
+        m.rsAdd[0] +
+        "," +
+        m.rsAdd[1] +
+        "," +
+        m.rsAdd[2] +
+        ");\n";
+      const floorStr =
+        "vec3( " + m.floor[0] + ", " + m.floor[1] + ", " + m.floor[2] + " ) + reflectionSample * 0.9";
+      const outgoingStr =
+        "vec3 outgoingLight = albedo * vec3(" +
+        m.outMul[0] +
+        "," +
+        m.outMul[1] +
+        "," +
+        m.outMul[2] +
+        ") + vec3(" +
+        m.outAdd[0] +
+        "," +
+        m.outAdd[1] +
+        "," +
+        m.outAdd[2] +
+        ");\n\t\t\t\t\t{\n\t\t\t\t\t\tfloat _h = gl_FragCoord.y;\n\t\t\t\t\t\tfloat _deep = 1.0 - smoothstep(40.0, 220.0, _h);\n\t\t\t\t\t\toutgoingLight = mix(outgoingLight, outgoingLight * vec3(" +
+        m.deepMul[0] +
+        "," +
+        m.deepMul[1] +
+        "," +
+        m.deepMul[2] +
+        ") + vec3(" +
+        m.deepAdd[0] +
+        "," +
+        m.deepAdd[1] +
+        "," +
+        m.deepAdd[2] +
+        "), _deep);\n\t\t\t\t\t}";
+      const rippleTag = "MOOD_RIPPLE_PLANAR_V1";
+      const rippleSnip =
+        "vec3 surfaceNormal = normalize( noise.xzy * vec3( 1.5, 1.0, 1.5 ) );\n" +
+        "{\n" +
+        "	float _w = max(7.0, u_moodRippleWidth);\n" +
+        "	float _a = u_moodRippleAmp;\n" +
+        "	if (_a > 0.0005) {\n" +
+        "		float _pz = worldPosition.z;\n" +
+        "		float _front = u_moodRippleLead;\n" +
+        "		float _band = smoothstep(_front - _w, _front, _pz) * (1.0 - smoothstep(_front, _front + _w * 0.82, _pz));\n" +
+        "		float _u = clamp((_pz - (_front - _w)) / max(_w, 1.0), 0.0, 1.0);\n" +
+        "		float _rip = sin(3.14159265 * _u) * _band;\n" +
+        "		surfaceNormal.x += (_rip * 1.05 + _band * 0.28) * _a * 1.22;\n" +
+        "		surfaceNormal.z += (_rip * 0.62 + _band * 0.18) * _a * 1.12;\n" +
+        "		surfaceNormal = normalize(surfaceNormal);\n" +
+        "	}\n" +
+        "}\n" +
+        "// " +
+        rippleTag +
+        "\n";
+
+      material.onBeforeCompile = (shader) => {
+        let fs = shader.fragmentShader;
+        if (!fs.includes("u_moodRippleLead")) {
+          fs = fs.replace(
+            /uniform\s+vec3\s+waterColor\s*;/,
+            "uniform vec3 waterColor;\nuniform float u_moodRippleLead;\nuniform float u_moodRippleWidth;\nuniform float u_moodRippleAmp;",
+          );
+        }
+        if (!fs.includes(rippleTag)) {
+          fs = fs.replace(
+            /vec3\s+surfaceNormal\s*=\s*normalize\(\s*noise\.xzy\s*\*\s*vec3\(\s*1\.5,\s*1\.0,\s*1\.5\s*\)\s*\)\s*;/,
+            rippleSnip,
+          );
+        }
+        const rsWebGL1 =
+          "vec3 reflectionSample = vec3( texture2D( mirrorSampler, mirrorCoord.xy / mirrorCoord.w + distortion ) );";
+        const rsWebGL2 =
+          "vec3 reflectionSample = vec3( texture( mirrorSampler, mirrorCoord.xy / mirrorCoord.w + distortion ) );";
+        if (fs.includes(rsWebGL1)) fs = fs.replace(rsWebGL1, rsWebGL1 + rsTint);
+        else if (fs.includes(rsWebGL2)) fs = fs.replace(rsWebGL2, rsWebGL2 + rsTint);
+        else
+          fs = fs.replace(
+            /vec3\s+reflectionSample\s*=\s*vec3\(\s*texture(?:2D)?\([^)]+\)\s*\)\s*;/,
+            (match) => match + rsTint,
+          );
+        fs = fs.replace(/vec3\(\s*0\.1\s*\)\s*\+\s*reflectionSample\s*\*\s*0\.9/g, floorStr);
+        fs = fs.replace(/vec3\s+outgoingLight\s*=\s*albedo\s*;/, outgoingStr);
+        shader.fragmentShader = fs;
+      };
+      material.needsUpdate = true;
+    }
+
+    async function loadWaterNormals() {
+      const url = "https://threejs.org/examples/textures/waternormals.jpg";
+      try {
+        const tex = await new THREE.TextureLoader().loadAsync(url);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        if ("colorSpace" in tex) tex.colorSpace = THREE.NoColorSpace;
+        return tex;
+      } catch (e) {
+        console.warn("[liquid] Using procedural normals (CDN map unavailable):", e);
+        return makeFallbackNormalTexture(256);
+      }
+    }
+
+    function buildLiquidScene(waterNormals) {
+      const preset = getActiveLiquidVisualPreset();
+      const L = preset.lights;
+      const W = preset.water;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000000);
+
+      /* No room/sky meshes: they showed up in the camera frustum as a blue “tent” above the pool
+         while the rest of the UI is pure #000. Mirror reflects this black background only. */
+
+      const amb = new THREE.AmbientLight(L.ambient.color, L.ambient.intensity);
+      scene.add(amb);
+      const moon = new THREE.DirectionalLight(L.moon.color, L.moon.intensity);
+      moon.position.set(L.moon.pos[0], L.moon.pos[1], L.moon.pos[2]);
+      scene.add(moon);
+      const fill = new THREE.DirectionalLight(L.fill.color, L.fill.intensity);
+      fill.position.set(L.fill.pos[0], L.fill.pos[1], L.fill.pos[2]);
+      scene.add(fill);
+      const pool = new THREE.PointLight(L.pool.color, L.pool.intensity, L.pool.distance, L.pool.decay);
+      pool.position.set(L.pool.pos[0], L.pool.pos[1], L.pool.pos[2]);
+      scene.add(pool);
+
+      /* Disk instead of a rectangle: a plane reads as a trapezoid with sharp horizon “corners”;
+         a circle projects as a smooth ellipse — no corner points on the silhouette. */
+      const waterGeom = new THREE.CircleGeometry(128, 112);
+      water = new Water(waterGeom, {
+        textureWidth: 1024,
+        textureHeight: 1024,
+        waterNormals,
+        sunDirection: new THREE.Vector3(W.sunDirectionCtor[0], W.sunDirectionCtor[1], W.sunDirectionCtor[2]).normalize(),
+        sunColor: W.sunColorCtor,
+        waterColor: W.waterColorCtor,
+        distortionScale: W.distortionScale,
+        size: W.size,
+        alpha: 1.0,
+        fog: false,
+      });
+      water.rotation.x = -Math.PI / 2;
+      water.position.y = -0.8;
+      scene.add(water);
+
+      const u = water.material.uniforms;
+      u.sunColor.value.setHex(W.sunColorUniform);
+      u.waterColor.value.setHex(W.waterColorUniform);
+      u.sunDirection.value.set(W.sunDirectionUniform[0], W.sunDirectionUniform[1], W.sunDirectionUniform[2]).normalize();
+      patchLiquidWaterMaterial(water.material, preset.mirror);
+    }
+
+    function initRendererAndScene(waterNormals) {
+      if (!canvas || !stage || renderer) return;
+
+      liquidResize = function () {
+        if (!renderer || !camera || !stage) return;
+        const ww = Math.max(2, stage.clientWidth);
+        const hh = Math.max(2, stage.clientHeight);
+        if (ww < 2 || hh < 2) return;
+        camera.aspect = ww / hh;
+        camera.updateProjectionMatrix();
+        renderer.setSize(ww, hh, false);
+      };
+
+      const w = Math.max(2, stage.clientWidth);
+      const h = Math.max(2, stage.clientHeight);
+
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        alpha: false,
+        powerPreference: "high-performance",
+      });
+      if (!renderer.getContext()) {
+        console.error("[liquid] WebGL context unavailable");
+        renderer.dispose();
+        renderer = null;
+        return;
+      }
+
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(w, h, false);
+      renderer.setClearColor(0x000000, 1);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 0.98;
+      renderer.shadowMap.enabled = false;
+
+      buildLiquidScene(waterNormals);
+
+      camera = new THREE.PerspectiveCamera(48, w / Math.max(h, 1), 0.5, 2500);
+      camera.position.set(0, 7.2, 16.5);
+      camera.lookAt(0, -2.2, -8);
+
+      resizeObserver = new ResizeObserver(() => liquidResize());
+      resizeObserver.observe(stage);
+      liquidResize();
+    }
+
+    function tick() {
+      if (!running || !renderer || !scene || !camera || !water) return;
+      raf = requestAnimationFrame(tick);
+      const dt = clock.getDelta();
+      water.material.uniforms.time.value += dt;
+      renderer.render(scene, camera);
+    }
+
+    function beginLoop() {
+      const liq = document.getElementById("guiLiquid");
+      if (!liq || liq.hidden) return;
+      if (!renderer || !assetsReady) return;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const L = document.getElementById("guiLiquid");
+          if (!L || L.hidden) return;
+          if (typeof liquidResize === "function") liquidResize();
+          running = true;
+          clock.getDelta();
+          if (!raf) tick();
+        });
+      });
+    }
+
+    window.__startLiquidWater = function () {
+      if (!canvas || !stage) return;
+      startPending = true;
+      if (!assetsReady) return;
+      if (!renderer) initRendererAndScene(window.__liquidWaterNormalTex);
+      if (!renderer) return;
+      beginLoop();
+    };
+
+    window.__stopLiquidWater = function () {
+      liquidPresetTransitionGen++;
+      startPending = false;
+      running = false;
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      if (water && water.material && water.material.uniforms) {
+        const u = water.material.uniforms;
+        if (u.u_moodRippleAmp) u.u_moodRippleAmp.value = 0;
+        if (u.u_moodRippleLead) u.u_moodRippleLead.value = -1e6;
+        try {
+          const p = getActiveLiquidVisualPreset();
+          if (p && p.water && u.distortionScale) u.distortionScale.value = p.water.distortionScale;
+        } catch (_) {}
+      }
+    };
+
+    function disposeLiquidWaterCore() {
+      running = false;
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+      }
+      if (scene) {
+        while (scene.children.length > 0) {
+          const o = scene.children[0];
+          scene.remove(o);
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) {
+            if (Array.isArray(o.material)) {
+              o.material.forEach(function (m) {
+                m.dispose();
+              });
+            } else {
+              o.material.dispose();
+            }
+          }
+        }
+        scene = null;
+      }
+      water = null;
+      camera = null;
+      if (renderer) {
+        renderer.dispose();
+        renderer = null;
+      }
+      liquidResize = null;
+    }
+
+    window.__rebuildLiquidWaterScene = function () {
+      const liq = document.getElementById("guiLiquid");
+      if (!liq || liq.hidden) return;
+      if (!assetsReady || !window.__liquidWaterNormalTex) return;
+      disposeLiquidWaterCore();
+      initRendererAndScene(window.__liquidWaterNormalTex);
+      beginLoop();
+    };
+
+    function startLiquidPresetRippleThenRebuild() {
+      const liq = document.getElementById("guiLiquid");
+      if (!liq || liq.hidden || !assetsReady || !window.__liquidWaterNormalTex) {
+        window.__rebuildLiquidWaterScene();
+        return;
+      }
+      if (!water || !water.material || !water.material.uniforms.u_moodRippleLead) {
+        window.__rebuildLiquidWaterScene();
+        return;
+      }
+      liquidPresetTransitionGen++;
+      const myGen = liquidPresetTransitionGen;
+      const u = water.material.uniforms;
+      const uDs = water.material.uniforms.distortionScale;
+      const baseDs = uDs ? uDs.value : 6;
+      u.u_moodRippleWidth.value = 38;
+      u.u_moodRippleAmp.value = 0.78;
+      u.u_moodRippleLead.value = LIQUID_MOOD_RIPPLE_Z0;
+      const t0 = performance.now();
+      function easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+      }
+      function step(now) {
+        if (myGen !== liquidPresetTransitionGen) return;
+        if (!water || !water.material || !water.material.uniforms.u_moodRippleLead) {
+          if (myGen === liquidPresetTransitionGen) window.__rebuildLiquidWaterScene();
+          return;
+        }
+        const uu = water.material.uniforms;
+        const rawT = Math.min(1, (now - t0) / LIQUID_MOOD_RIPPLE_MS);
+        const t = easeOutCubic(rawT);
+        uu.u_moodRippleLead.value = LIQUID_MOOD_RIPPLE_Z0 + t * (LIQUID_MOOD_RIPPLE_Z1 - LIQUID_MOOD_RIPPLE_Z0);
+        const pulse = Math.sin(rawT * Math.PI) * 1.85;
+        if (uu.distortionScale) uu.distortionScale.value = baseDs + pulse;
+        if (rawT < 1) {
+          requestAnimationFrame(step);
+        } else {
+          if (myGen !== liquidPresetTransitionGen) return;
+          uu.u_moodRippleAmp.value = 0;
+          uu.u_moodRippleLead.value = -1e6;
+          if (uu.distortionScale) uu.distortionScale.value = baseDs;
+          if (myGen !== liquidPresetTransitionGen) return;
+          window.__rebuildLiquidWaterScene();
+        }
+      }
+      requestAnimationFrame(step);
+    }
+
+    window.__liquidVisualPresets = LIQUID_VISUAL_PRESETS;
+    window.__getLiquidVisualPresetId = function () {
+      try {
+        const v = localStorage.getItem(LIQUID_PRESET_STORAGE_KEY);
+        return v && LIQUID_VISUAL_PRESETS[v] ? v : "anger";
+      } catch (_) {
+        return "anger";
+      }
+    };
+    /** Persist preset id. For in-app changes, mood bar runs a ripple then rebuild; call __rebuildLiquidWaterScene yourself if you set this from code. */
+    window.__setLiquidVisualPresetId = function (id) {
+      return setLiquidVisualPresetId(id);
+    };
+
+    (function wireLiquidPresetBar() {
+      const bar = document.getElementById("liquidPresetBar");
+      if (!bar) return;
+      function syncPresetButtons() {
+        let id = "anger";
+        try {
+          id = typeof window.__getLiquidVisualPresetId === "function" ? window.__getLiquidVisualPresetId() : "anger";
+        } catch (_) {}
+        bar.querySelectorAll("[data-liquid-preset]").forEach(function (btn) {
+          const on = btn.getAttribute("data-liquid-preset") === id;
+          btn.classList.toggle("liquid-preset-btn--active", on);
+          btn.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+      }
+      bar.addEventListener("click", function (ev) {
+        const btn = ev.target.closest("[data-liquid-preset]");
+        if (!btn) return;
+        const id = btn.getAttribute("data-liquid-preset");
+        if (!id) return;
+        let current = "anger";
+        try {
+          current = typeof window.__getLiquidVisualPresetId === "function" ? window.__getLiquidVisualPresetId() : "anger";
+        } catch (_) {}
+        if (id === current) return;
+        if (typeof window.__setLiquidVisualPresetId === "function" && !window.__setLiquidVisualPresetId(id)) return;
+        syncPresetButtons();
+        startLiquidPresetRippleThenRebuild();
+      });
+      syncPresetButtons();
+      window.__syncLiquidPresetBar = syncPresetButtons;
+    })();
+
+    loadWaterNormals().then((tex) => {
+      window.__liquidWaterNormalTex = tex;
+      assetsReady = true;
+      if (startPending) {
+        if (!renderer) initRendererAndScene(tex);
+        if (renderer) beginLoop();
+      }
+    });
+  </script>
+  <div
+    id="innerStreamLayer"
+    class="inner-stream-layer"
+    hidden
+    aria-live="polite"
+    aria-label="Inner monologue while idle"
+  >
+    <div class="inner-stream-layer__bar">
+      <span class="inner-stream-layer__title">Inner thread</span>
+      <span class="inner-stream-layer__hint">Press Space (outside the message box) or shake the mouse to return</span>
+    </div>
+    <div id="innerStreamBody" class="inner-stream-layer__body"></div>
+  </div>
 </body>
 </html>

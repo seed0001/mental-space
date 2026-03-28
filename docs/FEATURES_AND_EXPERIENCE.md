@@ -46,17 +46,17 @@ When the user’s message matches **trigger phrases** (e.g. “think deep”, �
 
 **Modules:** `spatial_memory/orientation_context.py`, `spatial_memory/pipeline.py`, `spatial_memory/classifier.py`
 
-By default, each message’s `(x, y, z)` is **not** classified in isolation:
+By default, each message’s full latent position `(x, y, z, w, v)` is **not** classified in isolation:
 
 - **Smoothing:** Raw classifier output is blended with the **previous turn’s position** from scene events:  
-  `raw ← (1 − w) × classifier + w × previous`, then **bean** constraint (default `w = 0.3`).
+  `raw ← (1 − α) × classifier + α × previous` on **all five axes**, then **bean** on `(x,y,z)` and clamp on `(w,v)` (default `α = 0.3`).
 - **Scene trail (classifier suffix):** If there is an **active** scene, recent `scene_events` positions and stances are appended to the classifier system prompt so ambiguous lines can follow the **thread trajectory**.
 
 **Deep-remember** turns skip both trail and momentum so that pass can “jump” intentionally.
 
 | Variable | Role |
 |----------|------|
-| `ORIENTATION_MOMENTUM_PREV_WEIGHT` | `0` disables smoothing; else weight on **previous** xyz (default `0.3`). |
+| `ORIENTATION_MOMENTUM_PREV_WEIGHT` | `0` disables smoothing; else weight on **previous** xyzwv (default `0.3`). |
 | `ORIENTATION_MOMENTUM_SCOPE` | `scene` (default) uses last event in the active scene; `global` uses last event in the DB. |
 | `ORIENTATION_CLASSIFIER_SCENE_TRAIL` | `0`/`false`/`no` disables the trail suffix. |
 | `ORIENTATION_SCENE_TRAIL_EVENTS` | How many recent events to summarize (default `5`). |
@@ -69,7 +69,7 @@ By default, each message’s `(x, y, z)` is **not** classified in isolation:
 
 Scenes group turns into threads; **continuity** can merge the new message into the active scene and steer commitment toward **deepening**. Deep remember sets `bypass_merge` so digest + weave are not pinned to one scene anchor for that turn.
 
-Momentum and trail use the same **scene_events** table that powers 3D trails in `graph_snapshot`.
+Momentum and trail use the same **scene_events** table that powers memory-field trails in `graph_snapshot` (each event stores `x,y,z,w,v`; the Three.js view still plots `x,y,z` and uses `w,v` for styling).
 
 ---
 

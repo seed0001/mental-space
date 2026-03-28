@@ -41,9 +41,13 @@ class MemoryNode:
     x: float
     y: float
     z: float
+    w: float
+    v: float
     self_other_score: float
     known_unknown_score: float
     active_contemplative_score: float
+    abstract_concrete_score: float
+    collaborative_autonomous_score: float
     commitment_type: CommitmentType
     confidence: float
     reinforcement_count: int
@@ -71,9 +75,13 @@ class MemoryNode:
             "x": self.x,
             "y": self.y,
             "z": self.z,
+            "w": self.w,
+            "v": self.v,
             "self_other_score": self.self_other_score,
             "known_unknown_score": self.known_unknown_score,
             "active_contemplative_score": self.active_contemplative_score,
+            "abstract_concrete_score": self.abstract_concrete_score,
+            "collaborative_autonomous_score": self.collaborative_autonomous_score,
             "commitment_type": self.commitment_type.value,
             "confidence": self.confidence,
             "reinforcement_count": self.reinforcement_count,
@@ -112,9 +120,17 @@ class MemoryNode:
             x=float(row["x"]),
             y=float(row["y"]),
             z=float(row["z"]),
+            w=float(row["w"]) if "w" in row else 0.0,
+            v=float(row["v"]) if "v" in row else 0.0,
             self_other_score=float(row["self_other_score"]),
             known_unknown_score=float(row["known_unknown_score"]),
             active_contemplative_score=float(row["active_contemplative_score"]),
+            abstract_concrete_score=float(row["abstract_concrete_score"])
+            if "abstract_concrete_score" in row
+            else 0.0,
+            collaborative_autonomous_score=float(row["collaborative_autonomous_score"])
+            if "collaborative_autonomous_score" in row
+            else 0.0,
             commitment_type=CommitmentType(row["commitment_type"]),
             confidence=float(row["confidence"]),
             reinforcement_count=int(row["reinforcement_count"]),
@@ -135,10 +151,21 @@ class Orientation:
     self_other: float
     known_unknown: float
     active_contemplative: float
+    abstract_concrete: float = 0.0
+    collaborative_autonomous: float = 0.0
     classifier_prompt_version: str = ""
 
     def as_tuple(self) -> tuple[float, float, float]:
         return (self.self_other, self.known_unknown, self.active_contemplative)
+
+    def as_xyzwv(self) -> tuple[float, float, float, float, float]:
+        return (
+            self.self_other,
+            self.known_unknown,
+            self.active_contemplative,
+            self.abstract_concrete,
+            self.collaborative_autonomous,
+        )
 
 
 @dataclass

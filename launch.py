@@ -9,6 +9,7 @@ Usage:
 
 Requires: Ollama running with llama3.2 (see spatial_memory config).
 Persona: edit persona.txt (injected into replies only, not orientation).
+Inner emotional layer: inner_persona.txt + right-panel editor; after ~2 min idle the UI runs a private TRM stream (Space / mouse-shake to dismiss).
 Optional: COMMITMENT_USE_LLM=1 for a second-pass LLM audit of commitment; CLASSIFIER_PROMPT_VERSION in spatial_memory/constants.py.
 """
 
